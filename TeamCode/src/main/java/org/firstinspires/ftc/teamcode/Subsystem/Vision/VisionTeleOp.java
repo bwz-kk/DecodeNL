@@ -8,19 +8,23 @@ import com.pedropathing.geometry.Pose;
 import com.seattlesolvers.solverslib.command.CommandOpMode;
 import com.seattlesolvers.solverslib.gamepad.GamepadEx;
 import com.seattlesolvers.solverslib.gamepad.GamepadKeys;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.seattlesolvers.solverslib.util.TelemetryData;
+
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
+@TeleOp
 public class VisionTeleOp extends CommandOpMode {
 
     private Follower follower;
+    TelemetryData telemetryData = new TelemetryData(telemetry);
 
     private VisionOdometry visionOdometry;
 
     @Override
     public void initialize() {
         GamepadEx gamepadEx = new GamepadEx(gamepad1);
-
 
         follower = Constants.createFollower(hardwareMap);
 
@@ -33,7 +37,7 @@ public class VisionTeleOp extends CommandOpMode {
         follower.startTeleOpDrive();
     }
 
-    @SuppressLint("DefaultLocale")
+
     @Override
     public void run() {
         super.run();
@@ -44,9 +48,9 @@ public class VisionTeleOp extends CommandOpMode {
 
         follower.update();
 
-        telemetry.addData("Pose robô X", String.format("%.1f\"", follower.getPose().getX()));
-        telemetry.addData("Pose robô Y", String.format("%.1f\"", follower.getPose().getY()));
-        telemetry.addData("Tag válida: ", visionOdometry.hasValidTag());
-        telemetry.update();
+        telemetryData.addData("Pose robô X", follower.getPose().getX());
+        telemetryData.addData("Pose robô Y", follower.getPose().getY());
+        telemetryData.addData("Tag válida: ", visionOdometry.hasValidTag());
+        telemetryData.update();
     }
 }

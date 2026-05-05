@@ -23,16 +23,6 @@ public class VisionOdometry {
 
     private final ElapsedTime updateTimer = new ElapsedTime();
 
-    // -------------------------------------------------------------------------
-    // Inicialização
-    // -------------------------------------------------------------------------
-
-    /**
-     * Inicializa e configura a Limelight 3A.
-     *
-     * @param hardwareMap mapa de hardware do OpMode
-     * @param telemetry   telemetria para debug em campo
-     */
     public void init(HardwareMap hardwareMap, Telemetry telemetry) {
         this.telemetry = telemetry;
 
@@ -42,18 +32,8 @@ public class VisionOdometry {
         limelight.start();
 
         updateTimer.reset();
-
-        telemetry.addLine("[Vision] Limelight inicializada.");
     }
 
-    // -------------------------------------------------------------------------
-    // Loop principal
-    // -------------------------------------------------------------------------
-
-    /**
-     * Deve ser chamado em cada iteração do loop do OpMode.
-     * Respeita o intervalo mínimo definido em VisionConstants.UPDATE_INTERVAL_MS.
-     */
     public void update() {
         LLResult result = limelight.getLatestResult();
 
@@ -65,10 +45,6 @@ public class VisionOdometry {
 
         processBestTag(result);
     }
-
-    // -------------------------------------------------------------------------
-    // Processamento de tags
-    // -------------------------------------------------------------------------
 
     private void processBestTag(LLResult result) {
         List<LLResultTypes.FiducialResult> tags = result.getFiducialResults();
@@ -112,12 +88,9 @@ public class VisionOdometry {
     private Pose convertAndCompensate(Pose3D rawPose) {
         final double METERS_TO_INCHES = 39.3701;
 
-        // Pose bruta em polegadas
         double x = rawPose.getPosition().x * METERS_TO_INCHES;
         double y = rawPose.getPosition().y * METERS_TO_INCHES;
 
-        // Heading: Limelight usa convenção WPILib (CCW positivo, radianos)
-        // PedroPathing também usa radianos CCW — sem conversão necessária
         double heading = rawPose.getOrientation().getYaw();
 
         return new Pose(x, y, heading);
@@ -125,7 +98,6 @@ public class VisionOdometry {
 
     public boolean resetPoseFromTag(Follower follower) {
         if (!hasValidDetection || currentVisionPose == null) {
-            telemetry.addLine("[Vision] Reset ignorado — sem tag válida.");
             return false;
         }
 
@@ -141,16 +113,17 @@ public class VisionOdometry {
     }
 
     public boolean hasValidTag() {
+
         return hasValidDetection && currentVisionPose != null;
     }
 
-    /** pose estimada pela câmera */
     public Pose getCurrentVisionPose() {
+
         return currentVisionPose;
     }
 
-    /** Para o streaming da Limelight. Chame em stop() do OpMode. */
     public void stop() {
+
         if (limelight != null) limelight.stop();
     }
 
@@ -158,7 +131,6 @@ public class VisionOdometry {
         if (result == null) return false;
 
         LLStatus status = limelight.getStatus();
-        // pipelineIndex garante que estamos no pipeline correto
         return status != null && result.isValid();
     }
 
@@ -177,7 +149,7 @@ public class VisionOdometry {
         double y = pose.getPosition().y;
         double z = pose.getPosition().z;
 
-        return Math.sqrt(x*x + y*y + z*z) * 39.3701; // metros → polegadas
+        return Math.sqrt(x*x + y*y + z*z) * 39.3701;
     }
 }
 
