@@ -27,12 +27,9 @@ public class Turret extends SubsystemBase {
     TauraServo turretServo1;
     TauraServo turretServo2;
     TauraServo turretServo3;
+    DcMotorEx throughBore;
     DcMotorEx shooter1;
     DcMotorEx shooter2;
-
-    DcMotorEx throughBoreEncoder;
-
-    private static final double TICKS_PER_REVOLUTION = 8192.0;
 
     InterpLUT velocityInterpolation = new InterpLUT();
     InterpLUT hoodInterpolation = new InterpLUT();
@@ -68,7 +65,9 @@ public class Turret extends SubsystemBase {
         turretServo2 = new TauraServo(hardwareMap.get(Servo.class, TurretConstants.TauraServo2));
         turretServo3 = new TauraServo(hardwareMap.get(Servo.class, TurretConstants.TauraServo3));
 
-        throughBoreEncoder = hardwareMap.get(DcMotorEx.class, TurretConstants.HMThroughBore);
+        throughBore = hardwareMap.get(DcMotorEx.class, TurretConstants.HMThroughBore);
+        throughBore.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        throughBore.setPower(0);
 
         shooter1 = hardwareMap.get(DcMotorEx.class, TurretConstants.HMShooter1);
         shooter2 = hardwareMap.get(DcMotorEx.class, TurretConstants.HMShooter2);
@@ -95,10 +94,17 @@ public class Turret extends SubsystemBase {
         return distance;
     }
 
+    public void zeroTurret() {
+        TurretConstants.turretZeroOffsetTicks = throughBore.getCurrentPosition();
+    }
+
     public double getTurretAngle() {
-        double ticks = throughBoreEncoder.getCurrentPosition();
-        double angleRadians = (ticks / TICKS_PER_REVOLUTION) * (2 * Math.PI);
-        return normalizeAngle(angleRadians);
+        long ticks = throughBore.getCurrentPosition();
+        long relativeTicks = ticks - TurretConstants.turretZeroOffsetTicks;
+        double angleRadians = relativeTicks * (2.0 * Math.PI) / TurretConstants.THROUGH_BORE_TICKS_PER_REV;
+        while (angleRadians > Math.PI)  angleRadians -= 2.0 * Math.PI;
+        while (angleRadians < -Math.PI) angleRadians += 2.0 * Math.PI;
+        return angleRadians;
     }
 
     public void updateBotPose(Pose pose) {
@@ -118,9 +124,6 @@ public class Turret extends SubsystemBase {
     }
 
     public void reinitMotors() {
-        throughBoreEncoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        throughBoreEncoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-
         shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooter2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooter1.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(0, 0, 0, 0));
@@ -173,13 +176,28 @@ public class Turret extends SubsystemBase {
             targetAngleRC += TurretConstants.blueOffset;
         }
 
-        targetAngleRC = Range.clip(targetAngleRC, -Math.PI, Math.PI);
+        targetAngleRC = Range.clip(targetAngleRC, TurretConstants.turretMinAngle, TurretConstants.turretMaxAngle);
 
         double currentAngle = getTurretAngle();
-        double pidOutput = turretController.calculate(currentAngle, targetAngleRC);
 
-        turretServoPosition += pidOutput;
-        turretServoPosition = Range.clip(turretServoPosition, TurretConstants.turretMinPosition, TurretConstants.turretMaxPosition);
+
+        boolean atMaxAngle = currentAngle >= TurretConstants.turretMaxAngle;
+        boolean atMinAngle = currentAngle <= TurretConstants.turretMinAngle;
+
+        double pidOutput = Range.clip(
+                turretController.calculate(currentAngle, targetAngleRC) / 2,
+                -0.7, 0.7
+        );
+
+        if ((atMaxAngle && pidOutput > 0) || (atMinAngle && pidOutput < 0)) {
+            pidOutput = 0;
+        }
+
+        turretServoPosition = Range.clip(
+                turretServoPosition + pidOutput,
+                TurretConstants.turretMinPosition,
+                TurretConstants.turretMaxPosition
+        );
 
         turretServo1.setPosition(turretServoPosition);
         turretServo2.setPosition(turretServoPosition);

@@ -16,8 +16,13 @@ public class TurretConstants {
     public static double blueOffset = Math.toRadians(2);
     public static final double hoodMinPosition = 0;
     public static final double hoodMaxPosition = 0.7;
-    public static double turretMinPosition = 0;
-    public static double turretMaxPosition = 1;
+    public static double THROUGH_BORE_TICKS_PER_REV = 8192.0;
+    public static long   turretZeroOffsetTicks       = 0;
+
+    public static double turretMinAngle    = -Math.PI;  // tune to physical limit
+    public static double turretMaxAngle    =  Math.PI;  // tune to physical limit
+    public static double turretMinPosition = 0.0;
+    public static double turretMaxPosition = 1.0;
 
 
     public enum SIDES {
