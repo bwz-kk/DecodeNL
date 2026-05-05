@@ -3,7 +3,10 @@ package org.firstinspires.ftc.teamcode.Subsystem.Turret;
 import com.pedropathing.geometry.Pose;
 
 public class TurretConstants {
-    public static final String HMTurret = "turret";
+    public static final String TauraServo1 = "TauraServo1";
+    public static final String TauraServo2 = "TauraServo2";
+    public static final String TauraServo3 = "TauraServo3";
+    public static final String HMThroughBore = "throughBoreEncoder";
     public static final String HMShooter1 = "shooter1";
     public static final String HMShooter2 = "shooter2";
     public static final String HMHood = "hood";
@@ -13,6 +16,10 @@ public class TurretConstants {
     public static double blueOffset = Math.toRadians(2);
     public static final double hoodMinPosition = 0;
     public static final double hoodMaxPosition = 0.7;
+    public static double turretMinPosition = 0;
+    public static double turretMaxPosition = 1;
+
+
     public enum SIDES {
         BLUE,
         RED

@@ -24,9 +24,15 @@ public class Turret extends SubsystemBase {
     public static int tuningVelocity = 0;
 
     TauraServo hood;
-    DcMotorEx turret;
+    TauraServo turretServo1;
+    TauraServo turretServo2;
+    TauraServo turretServo3;
     DcMotorEx shooter1;
     DcMotorEx shooter2;
+
+    DcMotorEx throughBoreEncoder;
+
+    private static final double TICKS_PER_REVOLUTION = 8192.0;
 
     InterpLUT velocityInterpolation = new InterpLUT();
     InterpLUT hoodInterpolation = new InterpLUT();
@@ -50,7 +56,7 @@ public class Turret extends SubsystemBase {
 
     Telemetry telemetry;
 
-    private static final double TICKS_PER_RADIAN = 0 / (2 * Math.PI);
+    private double turretServoPosition = 0.5;
 
     public Turret(HardwareMap hardwareMap) {
 
@@ -58,7 +64,12 @@ public class Turret extends SubsystemBase {
 
         hood = new TauraServo(hardwareMap.get(Servo.class, TurretConstants.HMHood));
 
-        turret = hardwareMap.get(DcMotorEx.class, TurretConstants.HMTurret);
+        turretServo1 = new TauraServo(hardwareMap.get(Servo.class, TurretConstants.TauraServo1));
+        turretServo2 = new TauraServo(hardwareMap.get(Servo.class, TurretConstants.TauraServo2));
+        turretServo3 = new TauraServo(hardwareMap.get(Servo.class, TurretConstants.TauraServo3));
+
+        throughBoreEncoder = hardwareMap.get(DcMotorEx.class, TurretConstants.HMThroughBore);
+
         shooter1 = hardwareMap.get(DcMotorEx.class, TurretConstants.HMShooter1);
         shooter2 = hardwareMap.get(DcMotorEx.class, TurretConstants.HMShooter2);
         reinitMotors();
@@ -69,7 +80,6 @@ public class Turret extends SubsystemBase {
         velocityInterpolation.add(0, 0);
         velocityInterpolation.add(maxDistance, 0);
         velocityInterpolation.createLUT();
-
 
         hoodInterpolation.add(minDistance, 0);
         hoodInterpolation.add(0, 0);
@@ -86,8 +96,8 @@ public class Turret extends SubsystemBase {
     }
 
     public double getTurretAngle() {
-        double encoderTicks = turret.getCurrentPosition();
-        double angleRadians = encoderTicks / TICKS_PER_RADIAN;
+        double ticks = throughBoreEncoder.getCurrentPosition();
+        double angleRadians = (ticks / TICKS_PER_REVOLUTION) * (2 * Math.PI);
         return normalizeAngle(angleRadians);
     }
 
@@ -108,9 +118,9 @@ public class Turret extends SubsystemBase {
     }
 
     public void reinitMotors() {
-        turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        throughBoreEncoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        throughBoreEncoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+
         shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooter2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooter1.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(0, 0, 0, 0));
@@ -166,12 +176,14 @@ public class Turret extends SubsystemBase {
         targetAngleRC = Range.clip(targetAngleRC, -Math.PI, Math.PI);
 
         double currentAngle = getTurretAngle();
-        double power = Range.clip(
-                turretController.calculate(currentAngle, targetAngleRC) / 2,
-                -0.7, 0.7
-        );
+        double pidOutput = turretController.calculate(currentAngle, targetAngleRC);
 
-        turret.setPower(power);
+        turretServoPosition += pidOutput;
+        turretServoPosition = Range.clip(turretServoPosition, TurretConstants.turretMinPosition, TurretConstants.turretMaxPosition);
+
+        turretServo1.setPosition(turretServoPosition);
+        turretServo2.setPosition(turretServoPosition);
+        turretServo3.setPosition(turretServoPosition);
 
         distance = botPose.distanceFrom(poseToAim);
     }
