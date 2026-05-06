@@ -17,6 +17,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 @TeleOp
 public class VisionTeleOp extends CommandOpMode {
     private Follower follower;
+
     TelemetryData telemetryData = new TelemetryData(telemetry);
 
     private VisionOdometry visionOdometry;
@@ -42,11 +43,13 @@ public class VisionTeleOp extends CommandOpMode {
 
         telemetry = FtcDashboard.getInstance().getTelemetry();
         follower.startTeleOpDrive();
+
     }
 
 
     @Override
     public void run() {
+
         super.run();
 
         visionOdometry.update();
