@@ -31,9 +31,9 @@ public class VisionOdometry {
     private final ElapsedTime updateTimer = new ElapsedTime();
 
     public VisionOdometry() {
-        kalmanX = new KalmanFilter1D(0, 100,0,0);
-        kalmanY = new KalmanFilter1D(0, 100,0,0);
-        kalmanH = new KalmanFilter1D(0, 100,0,0);
+        kalmanX = new KalmanFilter1D(0, 100,0.5,2.0);
+        kalmanY = new KalmanFilter1D(0, 100,0.5,2.0);
+        kalmanH = new KalmanFilter1D(0, 100,0.3,1.0);
     }
 
     public void init(HardwareMap hardwareMap, Telemetry telemetry) {
@@ -120,8 +120,8 @@ public class VisionOdometry {
         double y = rawPose.getPosition().y * MetersToInches;
         double heading = rawPose.getOrientation().getYaw();
 
-        x -= VisionConstants.cameraOffsetX * Math.cos(heading) - VisionConstants.cameraOffsetY * Math.sin(heading);
-        y -= VisionConstants.cameraOffsetX * Math.sin(heading) + VisionConstants.cameraOffsetY * Math.cos(heading);
+        x -= VisionConstants.cameraOffsetX * Math.cos(heading) + VisionConstants.cameraOffsetY * Math.sin(heading);
+        y -= VisionConstants.cameraOffsetX * Math.sin(heading) - VisionConstants.cameraOffsetY * Math.cos(heading);
 
         heading -= VisionConstants.cameraHeadingOffset;
 

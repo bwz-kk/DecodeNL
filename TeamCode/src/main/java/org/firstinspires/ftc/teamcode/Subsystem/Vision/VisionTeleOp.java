@@ -16,12 +16,12 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @TeleOp
 public class VisionTeleOp extends CommandOpMode {
-
     private Follower follower;
 
     TelemetryData telemetryData = new TelemetryData(telemetry);
 
     private VisionOdometry visionOdometry;
+    private boolean justResetPose = false;
 
     @Override
     public void initialize() {
@@ -32,7 +32,14 @@ public class VisionTeleOp extends CommandOpMode {
         visionOdometry = new VisionOdometry();
         visionOdometry.init(hardwareMap, telemetry);
 
-        gamepadEx.getGamepadButton(GamepadKeys.Button.Y).whenActive(() -> visionOdometry.resetPoseFromTag(follower));
+        gamepadEx.getGamepadButton(GamepadKeys.Button.Y).whenActive(() -> {
+            if (visionOdometry.resetPoseFromTag(follower)) {
+                justResetPose = true;
+                telemetry.addLine("✓ Pose reset from tag!");
+            } else {
+                telemetry.addLine("✗ No valid tag for reset!");
+            }
+        });
 
         telemetry = FtcDashboard.getInstance().getTelemetry();
         follower.startTeleOpDrive();
@@ -54,6 +61,16 @@ public class VisionTeleOp extends CommandOpMode {
         telemetryData.addData("Pose robô X", follower.getPose().getX());
         telemetryData.addData("Pose robô Y", follower.getPose().getY());
         telemetryData.addData("Tag válida: ", visionOdometry.hasValidTag());
+        if (visionOdometry.hasValidTag()) {
+            Pose visionPose = visionOdometry.getCurrentVisionPose();
+            telemetryData.addData("Vision X", visionPose.getX());
+            telemetryData.addData("Vision Y", visionPose.getY());
+            telemetryData.addData("Vision Heading", visionPose.getHeading());
+        }
+        if (justResetPose) {
+            telemetryData.addData("Pose reset status", "Just reset!");
+            justResetPose = false;
+        }
         telemetryData.update();
     }
 }
