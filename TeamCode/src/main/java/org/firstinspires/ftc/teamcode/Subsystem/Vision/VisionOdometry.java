@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.Subsystem.Vision;
 
+import com.acmerobotics.dashboard.FtcDashboard;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.limelightvision.LLResult;
@@ -41,6 +42,8 @@ public class VisionOdometry {
         limelight = hardwareMap.get(Limelight3A.class, VisionConstants.limelightName);
         limelight.pipelineSwitch(VisionConstants.limelightPipeline);
         limelight.start();
+        FtcDashboard.getInstance().startCameraStream(limelight, 120);
+
 
         updateTimer.reset();
     }
