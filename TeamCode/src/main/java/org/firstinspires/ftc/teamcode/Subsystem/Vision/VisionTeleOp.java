@@ -35,9 +35,9 @@ public class VisionTeleOp extends CommandOpMode {
         gamepadEx.getGamepadButton(GamepadKeys.Button.Y).whenActive(() -> {
             if (visionOdometry.resetPoseFromTag(follower)) {
                 justResetPose = true;
-                telemetry.addLine("✓ Pose reset from tag!");
+                telemetry.addLine("pose reset from tag");
             } else {
-                telemetry.addLine("✗ No valid tag for reset!");
+                telemetry.addLine("no valid tag");
             }
         });
 
@@ -68,7 +68,7 @@ public class VisionTeleOp extends CommandOpMode {
             telemetryData.addData("Vision Heading", visionPose.getHeading());
         }
         if (justResetPose) {
-            telemetryData.addData("Pose reset status", "Just reset!");
+            telemetryData.addData("Pose reset status", "just reset");
             justResetPose = false;
         }
         telemetryData.update();
