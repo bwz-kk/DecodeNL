@@ -31,15 +31,15 @@ public class VisionOdometry {
     private final ElapsedTime updateTimer = new ElapsedTime();
 
     public VisionOdometry() {
-        kalmanX = new KalmanFilter1D(0, 100,0.5,2.0);
-        kalmanY = new KalmanFilter1D(0, 100,0.5,2.0);
-        kalmanH = new KalmanFilter1D(0, 100,0.3,1.0);
+        kalmanX = new KalmanFilter1D(0, 100,0,0);
+        kalmanY = new KalmanFilter1D(0, 100,0,0);
+        kalmanH = new KalmanFilter1D(0, 100,0,0);
     }
 
     public void init(HardwareMap hardwareMap, Telemetry telemetry) {
         this.telemetry = telemetry;
 
-        limelight = hardwareMap.get(Limelight3A.class, VisionConstants.limelightName);
+        limelight = hardwareMap.get(Limelight3A.class, VisionConstants.odometryLimelightName);
         limelight.pipelineSwitch(VisionConstants.limelightPipeline);
         limelight.start();
         FtcDashboard.getInstance().startCameraStream(limelight, 120);
@@ -120,10 +120,10 @@ public class VisionOdometry {
         double y = rawPose.getPosition().y * MetersToInches;
         double heading = rawPose.getOrientation().getYaw();
 
-        x -= VisionConstants.cameraOffsetX * Math.cos(heading) + VisionConstants.cameraOffsetY * Math.sin(heading);
-        y -= VisionConstants.cameraOffsetX * Math.sin(heading) - VisionConstants.cameraOffsetY * Math.cos(heading);
+        x -= VisionConstants.odometryCameraOffsetX * Math.cos(heading) - VisionConstants.odometryCameraOffsetY * Math.sin(heading);
+        y -= VisionConstants.odometryCameraOffsetX * Math.sin(heading) + VisionConstants.odometryCameraOffsetY * Math.cos(heading);
 
-        heading -= VisionConstants.cameraHeadingOffset;
+        heading -= VisionConstants.odometryCameraHeadingOffset;
 
         return new Pose(x, y, heading);
     }

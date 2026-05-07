@@ -1183,7 +1183,7 @@ class Circle extends OpMode {
  * @author Lazar - 19234
  * @version 1.1, 5/19/2025
  */
-class Drawing {
+public class Drawing {
     public static final double ROBOT_RADIUS = 9; // woah
     private static final FieldManager panelsField = PanelsField.INSTANCE.getField();
 

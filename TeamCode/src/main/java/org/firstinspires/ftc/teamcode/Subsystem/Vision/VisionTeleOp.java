@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.Subsystem.Vision;
 import android.annotation.SuppressLint;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.seattlesolvers.solverslib.command.CommandOpMode;
@@ -12,6 +13,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.seattlesolvers.solverslib.util.TelemetryData;
 
 
+import org.firstinspires.ftc.teamcode.Field.DashboardDrawing;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @TeleOp
@@ -57,6 +59,10 @@ public class VisionTeleOp extends CommandOpMode {
         follower.setTeleOpDrive(gamepad1.left_stick_y , gamepad1.left_stick_x , -gamepad1.right_stick_x, false);
 
         follower.update();
+
+        TelemetryPacket packet = new TelemetryPacket();
+        DashboardDrawing.drawDebug(packet.fieldOverlay(), follower);
+        FtcDashboard.getInstance().sendTelemetryPacket(packet);
 
         telemetryData.addData("Pose robô X", follower.getPose().getX());
         telemetryData.addData("Pose robô Y", follower.getPose().getY());
