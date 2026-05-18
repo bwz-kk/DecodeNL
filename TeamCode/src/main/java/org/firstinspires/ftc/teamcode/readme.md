@@ -6,6 +6,14 @@ This module, TeamCode, is the place where you will write/paste the code for your
 robot controller App. This module is currently empty (a clean slate) but the
 process for adding OpModes is straightforward.
 
+## Robot Hardware Notes
+
+### Intake encoder requirement
+
+Electrical team warning: the `intake1` motor must have its internal encoder connected.
+The intake subsystem initializes this motor with `RUN_USING_ENCODER` so the motor
+controller can regulate speed and keep intake power more consistent.
+
 ## Creating your own OpModes
 
 The easiest way to create your own OpMode is to copy a Sample OpMode and make it your own.
