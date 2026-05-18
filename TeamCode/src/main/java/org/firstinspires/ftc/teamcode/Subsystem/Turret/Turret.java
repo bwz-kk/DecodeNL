@@ -13,10 +13,9 @@ import com.qualcomm.robotcore.util.Range;
 import com.seattlesolvers.solverslib.command.SubsystemBase;
 import com.seattlesolvers.solverslib.controller.PIDController;
 import com.seattlesolvers.solverslib.util.InterpLUT;
-
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.Subsystem.Turret.TurretConstants;
 import org.firstinspires.ftc.teamcode.Hardware.TauraServo;
+import org.firstinspires.ftc.teamcode.Subsystem.Turret.TurretConstants;
 
 @Config
 public class Turret extends SubsystemBase {
@@ -53,10 +52,11 @@ public class Turret extends SubsystemBase {
     private static final double TICKS_PER_RADIAN = 0 / (2 * Math.PI);
 
     public Turret(HardwareMap hardwareMap) {
-
         telemetry = FtcDashboard.getInstance().getTelemetry();
 
-        hood = new TauraServo(hardwareMap.get(Servo.class, TurretConstants.HMHood));
+        hood = new TauraServo(
+            hardwareMap.get(Servo.class, TurretConstants.HMHood)
+        );
 
         turret = hardwareMap.get(DcMotorEx.class, TurretConstants.HMTurret);
         shooter1 = hardwareMap.get(DcMotorEx.class, TurretConstants.HMShooter1);
@@ -69,7 +69,6 @@ public class Turret extends SubsystemBase {
         velocityInterpolation.add(0, 0);
         velocityInterpolation.add(maxDistance, 0);
         velocityInterpolation.createLUT();
-
 
         hoodInterpolation.add(minDistance, 0);
         hoodInterpolation.add(0, 0);
@@ -96,14 +95,17 @@ public class Turret extends SubsystemBase {
         this.botPose = pose;
 
         movementVector = new Vector(
-                lastPose.distanceFrom(botPose),
-                Math.atan2(botPose.getY() - lastPose.getY(), botPose.getX() - lastPose.getX())
+            lastPose.distanceFrom(botPose),
+            Math.atan2(
+                botPose.getY() - lastPose.getY(),
+                botPose.getX() - lastPose.getX()
+            )
         ).times(virtualBotMultiplier);
 
         virtualBotPose = new Pose(
-                botPose.getX() + movementVector.getXComponent(),
-                botPose.getY() + movementVector.getYComponent(),
-                botPose.getHeading()
+            botPose.getX() + movementVector.getXComponent(),
+            botPose.getY() + movementVector.getYComponent(),
+            botPose.getHeading()
         );
     }
 
@@ -113,8 +115,14 @@ public class Turret extends SubsystemBase {
         turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooter2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shooter1.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(0, 0, 0, 0));
-        shooter2.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(0, 0, 0, 0));
+        shooter1.setPIDFCoefficients(
+            DcMotor.RunMode.RUN_USING_ENCODER,
+            new PIDFCoefficients(0, 0, 0, 0)
+        );
+        shooter2.setPIDFCoefficients(
+            DcMotor.RunMode.RUN_USING_ENCODER,
+            new PIDFCoefficients(0, 0, 0, 0)
+        );
     }
 
     int targetVelocity = 0;
@@ -149,13 +157,21 @@ public class Turret extends SubsystemBase {
     }
 
     public boolean atVelocity() {
-        int tolerance = 0;
-        return Math.abs(this.targetVelocity - shooter1.getVelocity()) < tolerance;
+        int tolerance = 20;
+        return (
+            Math.abs(this.targetVelocity - shooter1.getVelocity()) < tolerance
+        );
     }
 
     private void updateTurret() {
-        targetAngleFC = -Math.atan2(poseToAim.getY() - botPose.getY(), poseToAim.getX() - botPose.getX()) + Math.PI;
-        double targetAngleRC = normalizeAngle(targetAngleFC + botPose.getHeading());
+        targetAngleFC =
+            -Math.atan2(
+                poseToAim.getY() - botPose.getY(),
+                poseToAim.getX() - botPose.getX()
+            ) + Math.PI;
+        double targetAngleRC = normalizeAngle(
+            targetAngleFC + botPose.getHeading()
+        );
 
         if (this.side == TurretConstants.SIDES.RED) {
             targetAngleRC += TurretConstants.redOffset;
@@ -167,8 +183,9 @@ public class Turret extends SubsystemBase {
 
         double currentAngle = getTurretAngle();
         double power = Range.clip(
-                turretController.calculate(currentAngle, targetAngleRC) / 2,
-                -0.7, 0.7
+            turretController.calculate(currentAngle, targetAngleRC) / 2,
+            -0.7,
+            0.7
         );
 
         turret.setPower(power);
@@ -178,18 +195,26 @@ public class Turret extends SubsystemBase {
 
     private void updateShooter() {
         setShooterVelocity(
-                (int) velocityInterpolation.get(Range.clip(distance, minDistance + 1, maxDistance - 1))
+            (int) velocityInterpolation.get(
+                Range.clip(distance, minDistance + 1, maxDistance - 1)
+            )
         );
     }
 
     private void updateHood() {
-        double position = hoodInterpolation.get(Range.clip(distance, minDistance + 1, maxDistance - 1));
-        position = Range.clip(position, TurretConstants.hoodMinPosition, TurretConstants.hoodMaxPosition);
+        double position = hoodInterpolation.get(
+            Range.clip(distance, minDistance + 1, maxDistance - 1)
+        );
+        position = Range.clip(
+            position,
+            TurretConstants.hoodMinPosition,
+            TurretConstants.hoodMaxPosition
+        );
         hood.setPosition(position);
     }
 
     private double normalizeAngle(double angle) {
-        while (angle > Math.PI)  angle -= 2 * Math.PI;
+        while (angle > Math.PI) angle -= 2 * Math.PI;
         while (angle < -Math.PI) angle += 2 * Math.PI;
         return angle;
     }
