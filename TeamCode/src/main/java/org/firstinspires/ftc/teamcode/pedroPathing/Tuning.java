@@ -111,7 +111,7 @@ public class Tuning extends SelectableOpMode {
     /** This creates a full stop of the robot by setting the drive motors to run at 0 power. */
     public static void stopRobot() {
         follower.startTeleopDrive(true);
-        follower.setTeleOpDrive(0,0,0,true);
+        follower.setTeleOpDrive(0,0,0,false);
     }
 }
 
@@ -150,7 +150,7 @@ class LocalizationTest extends OpMode {
      */
     @Override
     public void loop() {
-        follower.setTeleOpDrive(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x, true);
+        follower.setTeleOpDrive(-gamepad1.left_stick_y, gamepad1.left_stick_x, -gamepad1.right_stick_x, false);
         follower.update();
 
         telemetryM.debug("x:" + follower.getPose().getX());
@@ -1183,7 +1183,7 @@ class Circle extends OpMode {
  * @author Lazar - 19234
  * @version 1.1, 5/19/2025
  */
-public class Drawing {
+class Drawing {
     public static final double ROBOT_RADIUS = 9; // woah
     private static final FieldManager panelsField = PanelsField.INSTANCE.getField();
 

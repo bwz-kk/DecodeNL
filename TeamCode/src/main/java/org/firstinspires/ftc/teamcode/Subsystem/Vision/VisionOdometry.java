@@ -16,10 +16,6 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import java.util.List;
 
 public class VisionOdometry {
-    // -------------------------------------------------------------------------
-    // Kalman filters — one per axis
-    // -------------------------------------------------------------------------
-
     private final KalmanFilter1D kalmanX;
     private final KalmanFilter1D kalmanY;
     private final KalmanFilter1D kalmanH;
@@ -31,9 +27,9 @@ public class VisionOdometry {
     private final ElapsedTime updateTimer = new ElapsedTime();
 
     public VisionOdometry() {
-        kalmanX = new KalmanFilter1D(0, 100,0,0);
-        kalmanY = new KalmanFilter1D(0, 100,0,0);
-        kalmanH = new KalmanFilter1D(0, 100,0,0);
+        kalmanX = new KalmanFilter1D(0, 100, 0.1, 1.0);
+        kalmanY = new KalmanFilter1D(0, 100, 0.1, 1.0);
+        kalmanH = new KalmanFilter1D(0, 100, 0.1, 1.0);
     }
 
     public void init(HardwareMap hardwareMap, Telemetry telemetry) {
@@ -42,8 +38,7 @@ public class VisionOdometry {
         limelight = hardwareMap.get(Limelight3A.class, VisionConstants.odometryLimelightName);
         limelight.pipelineSwitch(VisionConstants.limelightPipeline);
         limelight.start();
-        FtcDashboard.getInstance().startCameraStream(limelight, 120);
-
+        FtcDashboard.getInstance().startCameraStream(limelight, 30);
 
         updateTimer.reset();
     }
@@ -106,7 +101,6 @@ public class VisionOdometry {
             if (!isValidTagId(tag.getFiducialId())) continue;
             if (tag.getRobotPoseFieldSpace() == null) continue;
 
-
             return tag;
         }
 
@@ -127,17 +121,36 @@ public class VisionOdometry {
 
         return new Pose(x, y, heading);
     }
+
     public boolean resetPoseFromTag(Follower follower) {
         if (!hasValidDetection || currentVisionPose == null) {
+            telemetry.addLine("Vision: No valid detection for reset");
             return false;
         }
 
-        follower.setPose(currentVisionPose);
+        Pose currentPose = follower.getPose();
+        Pose visionPose = currentVisionPose;
 
-        kalmanX.reset(currentVisionPose.getX());
-        kalmanY.reset(currentVisionPose.getY());
-        kalmanH.reset(currentVisionPose.getHeading());
 
+
+        // Fuse odometry and vision instead of hard reset
+        double wOdo = VisionConstants.ODOMETRY_WEIGHT;
+        double wLL = VisionConstants.LIMELIGHT_WEIGHT;
+        double total = wOdo + wLL;
+
+        double fusedX = (currentPose.getX() * wOdo + visionPose.getX() * wLL) / total;
+        double fusedY = (currentPose.getY() * wOdo + visionPose.getY() * wLL) / total;
+
+        Pose fusedPose = new Pose(fusedX, fusedY, currentPose.getHeading());
+
+        follower.setPose(fusedPose);
+
+        // Reset Kalman filters to the fused pose
+        kalmanX.reset(fusedX);
+        kalmanY.reset(fusedY);
+        kalmanH.reset(currentPose.getHeading());
+
+        telemetry.addLine("Vision: Pose corrected (fused)");
         return true;
     }
 
@@ -171,8 +184,3 @@ public class VisionOdometry {
         return ta > 0 ? (1.0 / ta) * 10.0 : Double.MAX_VALUE;
     }
 }
-
-
-
-
-

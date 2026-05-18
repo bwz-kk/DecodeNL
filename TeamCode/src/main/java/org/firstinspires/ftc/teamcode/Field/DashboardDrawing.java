@@ -7,7 +7,7 @@ import com.pedropathing.paths.Path;
 import com.pedropathing.util.PoseHistory;
 
 public class DashboardDrawing {
-    public static final double ROBOT_RADIUS = 9;
+    public static final double ROBOT_RADIUS = 3;
 
     public static void drawDebug(Canvas c, Follower follower) {
         if (follower.getCurrentPath() != null) {
@@ -44,9 +44,9 @@ public class DashboardDrawing {
     public static void drawRobot(Canvas c, Pose pose) {
         if (pose == null) return;
 
-        double x = pose.getX();
-        double y = pose.getY();
-        double heading = pose.getHeading();
+        double x = -pose.getX();
+        double y = -pose.getY();
+        double heading = pose.getHeading() + 3.14;
 
         c.strokeCircle(x, y, ROBOT_RADIUS);
 
@@ -65,7 +65,7 @@ public class DashboardDrawing {
         double[] ys = history.getYPositionsArray();
 
         for (int i = 0; i < xs.length - 1; i++) {
-            c.strokeLine(xs[i], ys[i], xs[i + 1], ys[i + 1]);
+            c.strokeLine(-xs[i], -ys[i], -xs[i + 1], -ys[i + 1]);
         }
     }
 }

@@ -1,11 +1,15 @@
 package org.firstinspires.ftc.teamcode.Subsystem.Vision;
 
+import static org.firstinspires.ftc.teamcode.pedroPathing.Tuning.drawCurrent;
+import static org.firstinspires.ftc.teamcode.pedroPathing.Tuning.follower;
+
 import android.annotation.SuppressLint;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
+import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.seattlesolvers.solverslib.command.CommandOpMode;
 import com.seattlesolvers.solverslib.gamepad.GamepadEx;
 import com.seattlesolvers.solverslib.gamepad.GamepadKeys;
@@ -13,12 +17,16 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.seattlesolvers.solverslib.util.TelemetryData;
 
 
+import org.firstinspires.ftc.teamcode.Commands.Intake.IntakeOff;
+import org.firstinspires.ftc.teamcode.Commands.Intake.IntakeOn;
 import org.firstinspires.ftc.teamcode.Field.DashboardDrawing;
+import org.firstinspires.ftc.teamcode.Subsystem.Intake.Intake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @TeleOp
 public class VisionTeleOp extends CommandOpMode {
     private Follower follower;
+    private Intake intake;
 
     TelemetryData telemetryData = new TelemetryData(telemetry);
 
@@ -30,10 +38,13 @@ public class VisionTeleOp extends CommandOpMode {
         GamepadEx gamepadEx = new GamepadEx(gamepad1);
 
         follower = Constants.createFollower(hardwareMap);
+        intake = new Intake(hardwareMap);
+
 
         visionOdometry = new VisionOdometry();
         visionOdometry.init(hardwareMap, telemetry);
-
+        gamepadEx.getGamepadButton(GamepadKeys.Button.LEFT_BUMPER).whenActive(new IntakeOn(intake));
+        gamepadEx.getGamepadButton(GamepadKeys.Button.LEFT_BUMPER).whenInactive(new IntakeOff(intake));
         gamepadEx.getGamepadButton(GamepadKeys.Button.Y).whenActive(() -> {
             if (visionOdometry.resetPoseFromTag(follower)) {
                 justResetPose = true;
@@ -56,8 +67,8 @@ public class VisionTeleOp extends CommandOpMode {
 
         visionOdometry.update();
 
-        follower.setTeleOpDrive(gamepad1.left_stick_y , gamepad1.left_stick_x , -gamepad1.right_stick_x, false);
-
+        follower.setTeleOpDrive(-gamepad1.left_stick_y, gamepad1.left_stick_x, -gamepad1.right_stick_x, false);
+        follower.getPose();
         follower.update();
 
         TelemetryPacket packet = new TelemetryPacket();
