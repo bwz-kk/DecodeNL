@@ -4,7 +4,7 @@ import com.pedropathing.geometry.Pose;
 
 public class VisionConstants {
     public static final String odometryLimelightName = "odometryLimelight";
-    public static final int[] validTags = {21,24};
+    public static final int[] validTags = {20,24};
     public static final int limelightPipeline = 0;
     public static final double odometryCameraOffsetX = 0;
     public static final double odometryCameraOffsetY = 6;
@@ -16,7 +16,7 @@ public class VisionConstants {
 
     // separação legal uou!!!
     public static final String turretLimelightName = "limelight-turret";
-    public static final int[] validTurretTags = {21, 24};
+    public static final int[] validTurretTags = {20, 24};
     public static final int turretLimelightPipeline = 0;
     public static final long turretIntervalMS = 33; // ~30 Hz
     public static final Pose startPose = new Pose(0, 0, 0);
