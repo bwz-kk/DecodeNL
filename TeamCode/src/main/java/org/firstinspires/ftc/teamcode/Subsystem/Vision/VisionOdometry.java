@@ -1,12 +1,12 @@
 package org.firstinspires.ftc.teamcode.Subsystem.Vision;
 
-import com.acmerobotics.dashboard.FtcDashboard;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
-import com.qualcomm.hardware.limelightvision.LLStatus;
-import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
@@ -14,37 +14,54 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 
 import java.util.List;
+import java.util.Optional;
 
-public class VisionOdometry {
+public class VisionOdometry extends LimelightBase {
+
     private final KalmanFilter1D kalmanX;
     private final KalmanFilter1D kalmanY;
     private final KalmanFilter1D kalmanH;
-    private Limelight3A limelight;
-    private Telemetry telemetry;
-    private Pose currentVisionPose = null;
-    private boolean hasValidDetection = false;
-
     private final ElapsedTime updateTimer = new ElapsedTime();
 
+    private Pose currentVisionPose = null;
+
     public VisionOdometry() {
-        kalmanX = new KalmanFilter1D(0, 100, 0.1, 1.0);
-        kalmanY = new KalmanFilter1D(0, 100, 0.1, 1.0);
-        kalmanH = new KalmanFilter1D(0, 100, 0.1, 1.0);
+        kalmanX = new KalmanFilter1D(
+                0,
+                OdometryConstants.KALMAN_INITIAL_ERROR,
+                OdometryConstants.KALMAN_PROCESS_NOISE,
+                OdometryConstants.KALMAN_MEASUREMENT_NOISE
+        );
+        kalmanY = new KalmanFilter1D(
+                0,
+                OdometryConstants.KALMAN_INITIAL_ERROR,
+                OdometryConstants.KALMAN_PROCESS_NOISE,
+                OdometryConstants.KALMAN_MEASUREMENT_NOISE
+        );
+        kalmanH = new KalmanFilter1D(
+                0,
+                OdometryConstants.KALMAN_INITIAL_ERROR,
+                OdometryConstants.KALMAN_PROCESS_NOISE,
+                OdometryConstants.KALMAN_MEASUREMENT_NOISE
+        );
     }
 
-    public void init(HardwareMap hardwareMap, Telemetry telemetry) {
-        this.telemetry = telemetry;
-
-        limelight = hardwareMap.get(Limelight3A.class, VisionConstants.odometryLimelightName);
-        limelight.pipelineSwitch(VisionConstants.limelightPipeline);
-        limelight.start();
-        FtcDashboard.getInstance().startCameraStream(limelight, 30);
-
+    public void init(@NonNull HardwareMap hardwareMap, Telemetry telemetry) {
+        init(
+                hardwareMap,
+                telemetry,
+                OdometryConstants.HARDWARE_NAME,
+                OdometryConstants.PIPELINE,
+                30
+        );
         updateTimer.reset();
     }
 
+    @Override
     public void update() {
-        if (updateTimer.milliseconds() < VisionConstants.intervalMS) return;
+        if (updateTimer.milliseconds() < OdometryConstants.INTERVAL_MS) {
+            return;
+        }
         updateTimer.reset();
 
         kalmanX.predict();
@@ -52,7 +69,6 @@ public class VisionOdometry {
         kalmanH.predict();
 
         LLResult result = limelight.getLatestResult();
-
         if (!isResultUsable(result)) {
             hasValidDetection = false;
             currentVisionPose = null;
@@ -62,7 +78,7 @@ public class VisionOdometry {
         processBestTag(result);
     }
 
-    private void processBestTag(LLResult result) {
+    private void processBestTag(@NonNull LLResult result) {
         List<LLResultTypes.FiducialResult> tags = result.getFiducialResults();
 
         if (tags == null || tags.isEmpty()) {
@@ -80,9 +96,9 @@ public class VisionOdometry {
         }
 
         Pose3D rawPose = bestTag.getRobotPoseFieldSpace();
-
         if (rawPose == null) {
             hasValidDetection = false;
+            currentVisionPose = null;
             return;
         }
 
@@ -96,46 +112,91 @@ public class VisionOdometry {
         hasValidDetection = true;
     }
 
-    private LLResultTypes.FiducialResult selectBestTag(List<LLResultTypes.FiducialResult> tags) {
-        for (LLResultTypes.FiducialResult tag : tags) {
-            if (!isValidTagId(tag.getFiducialId())) continue;
-            if (tag.getRobotPoseFieldSpace() == null) continue;
-
-            return tag;
+    public Optional<Pose> getRobotPoseMT2(double headingRadians) {
+        LLResult result = limelight.getLatestResult();
+        if (!isResultUsable(result)) {
+            return Optional.empty();
         }
 
-        return null;
+        Pose3D botpose = result.getBotpose_MT2();
+        if (botpose == null) {
+            return Optional.empty();
+        }
+
+        double x = botpose.getPosition().x * OdometryConstants.METERS_TO_INCHES
+                - OdometryConstants.CAMERA_OFFSET_X;
+        double y = botpose.getPosition().y * OdometryConstants.METERS_TO_INCHES
+                - OdometryConstants.CAMERA_OFFSET_Y;
+
+        return Optional.of(new Pose(x, y, headingRadians));
     }
 
-    private Pose convertAndCompensate(Pose3D rawPose) {
-        final double MetersToInches = 39.3701;
+    private LLResultTypes.FiducialResult selectBestTag(
+            @NonNull List<LLResultTypes.FiducialResult> tags
+    ) {
+        LLResultTypes.FiducialResult bestTag = null;
+        double bestArea = -1;
 
-        double x = rawPose.getPosition().x * MetersToInches;
-        double y = rawPose.getPosition().y * MetersToInches;
+        for (LLResultTypes.FiducialResult tag : tags) {
+            if (!isValidTagId(tag.getFiducialId(), OdometryConstants.VALID_TAG_IDS)) {
+                continue;
+            }
+            Pose3D pose = tag.getRobotPoseFieldSpace();
+            if (pose == null) {
+                continue;
+            }
+            double area = tag.getTargetArea();
+            if (area > bestArea) {
+                bestArea = area;
+                bestTag = tag;
+            }
+        }
+
+        return bestTag;
+    }
+
+    private Pose convertAndCompensate(@NonNull Pose3D rawPose) {
+        double x = rawPose.getPosition().x * OdometryConstants.METERS_TO_INCHES;
+        double y = rawPose.getPosition().y * OdometryConstants.METERS_TO_INCHES;
         double heading = rawPose.getOrientation().getYaw();
 
-        x -= VisionConstants.odometryCameraOffsetX * Math.cos(heading) - VisionConstants.odometryCameraOffsetY * Math.sin(heading);
-        y -= VisionConstants.odometryCameraOffsetX * Math.sin(heading) + VisionConstants.odometryCameraOffsetY * Math.cos(heading);
+        x -= OdometryConstants.CAMERA_OFFSET_X * Math.cos(heading)
+                - OdometryConstants.CAMERA_OFFSET_Y * Math.sin(heading);
+        y -= OdometryConstants.CAMERA_OFFSET_X * Math.sin(heading)
+                + OdometryConstants.CAMERA_OFFSET_Y * Math.cos(heading);
 
-        heading -= VisionConstants.odometryCameraHeadingOffset;
+        heading -= OdometryConstants.CAMERA_HEADING_OFFSET;
 
         return new Pose(x, y, heading);
     }
 
-    public boolean resetPoseFromTag(Follower follower) {
+    public boolean resetPoseFromTag(@NonNull Follower follower) {
         if (!hasValidDetection || currentVisionPose == null) {
-            telemetry.addLine("Vision: No valid detection for reset");
+            if (telemetry != null) {
+                telemetry.addLine("Vision: No valid detection for reset");
+            }
             return false;
         }
 
         Pose currentPose = follower.getPose();
         Pose visionPose = currentVisionPose;
 
+        double distInches = Math.hypot(
+                visionPose.getX() - currentPose.getX(),
+                visionPose.getY() - currentPose.getY()
+        );
+        double maxDeltaInches =
+                OdometryConstants.MAX_DELTA_METERS * OdometryConstants.METERS_TO_INCHES;
 
+        if (distInches > maxDeltaInches) {
+            if (telemetry != null) {
+                telemetry.addLine("Vision: Outlier rejected (" + distInches + " in)");
+            }
+            return false;
+        }
 
-        // Fuse odometry and vision instead of hard reset
-        double wOdo = VisionConstants.ODOMETRY_WEIGHT;
-        double wLL = VisionConstants.LIMELIGHT_WEIGHT;
+        double wOdo = OdometryConstants.ODOMETRY_WEIGHT;
+        double wLL = OdometryConstants.LIMELIGHT_WEIGHT;
         double total = wOdo + wLL;
 
         double fusedX = (currentPose.getX() * wOdo + visionPose.getX() * wLL) / total;
@@ -145,42 +206,23 @@ public class VisionOdometry {
 
         follower.setPose(fusedPose);
 
-        // Reset Kalman filters to the fused pose
         kalmanX.reset(fusedX);
         kalmanY.reset(fusedY);
         kalmanH.reset(currentPose.getHeading());
 
-        telemetry.addLine("Vision: Pose corrected (fused)");
+        if (telemetry != null) {
+            telemetry.addLine("Vision: Pose corrected (fused)");
+        }
         return true;
     }
 
+    @Deprecated
     public boolean hasValidTag() {
         return hasValidDetection && currentVisionPose != null;
     }
 
+    @Nullable
     public Pose getCurrentVisionPose() {
         return currentVisionPose;
-    }
-
-    public void stop() {
-        if (limelight != null) limelight.stop();
-    }
-
-    private boolean isResultUsable(LLResult result) {
-        if (result == null) return false;
-        LLStatus status = limelight.getStatus();
-        return status != null && result.isValid();
-    }
-
-    private boolean isValidTagId(int id) {
-        for (int valid : VisionConstants.validTags) {
-            if (valid == id) return true;
-        }
-        return false;
-    }
-
-    private double getTagDistance(LLResultTypes.FiducialResult tag) {
-        double ta = tag.getTargetArea();
-        return ta > 0 ? (1.0 / ta) * 10.0 : Double.MAX_VALUE;
     }
 }

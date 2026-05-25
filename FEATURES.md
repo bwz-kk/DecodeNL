@@ -72,7 +72,24 @@ This document describes every major feature of the DecodeNL FTC robot at a funct
 
 ---
 
-## 4. Vision System — Turret Targeting
+## 4. Vision System — Architecture Overview
+
+**Purpose:** The vision system provides two distinct capabilities: (1) tracking scoring targets for turret aiming, and (2) correcting odometry drift for global pose accuracy. Both capabilities share a common hardware abstraction layer.
+
+**Architecture:**
+- All Limelight cameras inherit functionality from `LimelightBase`, an abstract base class that handles:
+  - Hardware initialization and pipeline switching
+  - Camera lifecycle (`start()` / `stop()`)
+  - Dashboard camera stream setup
+  - Result validation (`isResultUsable`)
+  - Tag ID validation (`isValidTagId`)
+- Two concrete implementations: `TurretVision` (target tracking) and `VisionOdometry` (pose correction).
+- Constants are separated by concern: `OdometryConstants`, `TurretVisionConstants`, and shared types in `VisionConstants`.
+- Pose corrections are encapsulated in `UpdatePoseCommand` (FTCLib `CommandBase`) for clean command-based integration.
+
+---
+
+## 4a. Vision System — Turret Targeting
 
 **Purpose:** Detect and track the goal's AprilTag to provide precise angular aiming data for the turret.
 
@@ -80,7 +97,8 @@ This document describes every major feature of the DecodeNL FTC robot at a funct
 - Uses a dedicated Limelight 3A camera (named `limelight-turret`) pointed at the goal direction.
 - Runs at approximately 30 Hz, extracting fiducial (AprilTag) results each cycle.
 - Selects the best tag by largest target area among valid tag IDs (20 and 24).
-- Applies a Kalman filter to smooth the raw yaw measurement, reducing jitter from frame-to-frame noise.
+- Applies a 1D Kalman filter to smooth the raw yaw measurement, reducing jitter from frame-to-frame noise.
+- Uses meaningful Kalman tuning (`Q=0.1` process noise, `R=2.0` measurement noise) for effective filtering.
 - Reports the filtered yaw offset and target area. Returns zero when no valid tag is detected.
 
 **Integrations:**
@@ -95,7 +113,7 @@ This document describes every major feature of the DecodeNL FTC robot at a funct
 
 ---
 
-## 5. Vision System — Odometry Correction
+## 4b. Vision System — Odometry Correction
 
 **Purpose:** Correct cumulative dead-reckoning drift by fusing Limelight vision data with the Pinpoint odometry estimate.
 
@@ -104,20 +122,26 @@ This document describes every major feature of the DecodeNL FTC robot at a funct
 - Runs at approximately 20 Hz, extracting 3D robot pose from detected AprilTags.
 - Converts the 3D camera-space pose to 2D field coordinates, compensating for the camera's physical offset on the robot.
 - Applies three independent 1D Kalman filters (X, Y, Heading) to smooth the vision pose estimates.
-- When a pose reset is triggered (manually in TeleOp or automatically in autonomous):
+- Supports two pose retrieval methods:
+  - **Fiducial-based**: extracts 3D pose from individual AprilTag detections (existing behavior).
+  - **MT2-based**: uses Limelight's MegaTag2 fused pose output (lower latency, more stable).
+- When a pose reset is triggered (manually in TeleOp or automatically in autonomous via `UpdatePoseCommand`):
   - Fuses the vision pose with the current odometry pose using configurable weights (70% odometry / 30% vision).
   - Updates the follower's pose to the fused result.
   - Rejects outlier readings that deviate more than 1 meter from expected position.
+- `UpdatePoseCommand` handles both initial pose setting (in `initialize()`) and runtime corrections, with outlier rejection.
 
 **Integrations:**
 - Reads the current follower (odometry) pose when performing a correction.
 - Writes the fused pose back into the follower, replacing the dead-reckoning estimate.
 - Streams its camera feed to the FTC Dashboard at 30 FPS.
+- Used by `UpdatePoseCommand` for both TeleOp manual resets and autonomous periodic corrections.
 
 **Responsibilities:**
 - Maintain accurate global position over the course of a match, counteracting wheel slip and encoder drift.
 - Provide pose corrections gentle enough not to cause sudden robot jumps or path-following instability.
 - Recognize and reject clearly erroneous vision readings.
+- Separate initial pose estimation (hard reset) from incremental runtime corrections (fusion).
 
 ---
 
