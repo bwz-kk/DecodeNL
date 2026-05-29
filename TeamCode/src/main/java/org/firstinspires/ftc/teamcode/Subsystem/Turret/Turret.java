@@ -135,14 +135,7 @@ public class Turret extends SubsystemBase {
 
     @Override
     public void periodic() {
-        switch (side) {
-            case RED:
-                this.poseToAim = TurretConstants.redGoalPose;
-                break;
-            case BLUE:
-                this.poseToAim = TurretConstants.blueGoalPose;
-                break;
-        }
+        this.poseToAim = TurretConstants.getGoalPose(side);
         updateTurret();
         updateShooter();
         updateHood();

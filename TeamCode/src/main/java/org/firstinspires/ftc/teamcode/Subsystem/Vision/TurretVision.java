@@ -8,6 +8,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.Subsystem.Turret.TurretConstants;
 
 import java.util.List;
 
@@ -88,11 +89,13 @@ public class TurretVision extends LimelightBase {
     private LLResultTypes.FiducialResult selectBestTag(
             @NonNull List<LLResultTypes.FiducialResult> tags
     ) {
+        int targetTagId = TurretVisionConstants.getTagIdForSide(TurretConstants.selectedSide);
+
         LLResultTypes.FiducialResult bestTag = null;
         double bestArea = -1;
 
         for (LLResultTypes.FiducialResult tag : tags) {
-            if (!isValidTagId(tag.getFiducialId(), TurretVisionConstants.VALID_TAG_IDS)) {
+            if (tag.getFiducialId() != targetTagId) {
                 continue;
             }
             double area = tag.getTargetArea();

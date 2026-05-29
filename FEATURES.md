@@ -226,6 +226,38 @@ This document describes every major feature of the DecodeNL FTC robot at a funct
 
 ---
 
+## 11. Alliance Side Selection System
+
+**Purpose:** Provide a single, globally persistent alliance side selection that all subsystems and OpModes can read without requiring re-selection between Autonomous and TeleOp.
+
+**Behavior:**
+- The selected alliance side is stored in `TurretConstants.selectedSide` (type `TurretConstants.SIDES`, values `BLUE` / `RED`).
+- Defaults to `BLUE` if never explicitly set.
+- Autonomous OpModes set `TurretConstants.selectedSide` during `initialize()` before any subsystem logic runs.
+- TeleOp OpModes read the value directly — no re-selection is required.
+- The value persists for the lifetime of the robot controller process (across OpMode transitions within a match).
+
+**Integrations:**
+- **Turret subsystem** (`Turret.java`): reads `TurretConstants.selectedSide` (via the local `side` field set from `PosePreserve.lastSide`) to choose the correct goal pose and angular offset via `TurretConstants.getGoalPose()`.
+- **Turret vision** (`TurretVision.java`): reads `TurretConstants.selectedSide` in `selectBestTag()` and resolves the alliance-correct AprilTag via `TurretVisionConstants.getTagIdForSide()` — ID `20` for BLUE, ID `24` for RED.
+- **Pose management** (`PosePreserve.java`): stores `lastSide` as `TurretConstants.SIDES` and uses it to mirror the starting pose for the correct alliance.
+
+**Centralized Helper Methods:**
+- `TurretConstants.getGoalPose(SIDES)` — returns `blueGoalPose` for BLUE, `redGoalPose` for RED. Used by the turret subsystem and can be reused by any OpMode or command that needs the target pose for the current alliance.
+- `TurretVisionConstants.getTagIdForSide(SIDES)` — returns `BLUE_TAG_ID` (20) for BLUE, `RED_TAG_ID` (24) for RED. Used by turret vision and provides a single point of update for any future tag re-mapping.
+
+**Responsibilities:**
+- Eliminate duplicated side-state variables across OpModes.
+- Ensure turret vision never locks onto the opposing alliance's goal tag.
+- Provide a clean, scalable foundation for future alliance-aware features (mirrored paths, alliance-specific scoring zones).
+
+**Usage pattern (in Autonomous `initialize()`):**
+```java
+TurretConstants.selectedSide = TurretConstants.SIDES.BLUE;  // or SIDES.RED
+```
+
+---
+
 ## 10. Hardware Abstraction Layer
 
 **Purpose:** Provide robust, reusable wrappers around raw FTC hardware objects (servos, motors) to add feedback capabilities and closed-loop control.

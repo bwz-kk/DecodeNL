@@ -18,5 +18,15 @@ public class TurretConstants {
         RED
     }
 
-
+    public static SIDES selectedSide = SIDES.BLUE;
+    
+    public static Pose getGoalPose(SIDES side) {
+        switch (side) {
+            case RED:
+                return redGoalPose;
+            case BLUE:
+            default:
+                return blueGoalPose;
+        }
+    }
 }
