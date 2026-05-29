@@ -44,19 +44,16 @@ public class DashboardDrawing {
     public static void drawRobot(Canvas c, Pose pose) {
         if (pose == null) return;
 
-        double x = -pose.getX();
-        double y = -pose.getY();
-        double heading = pose.getHeading() + 3.14;
+        double x = pose.getX();
+        double y = pose.getY();
+        double heading = pose.getHeading();
 
         c.strokeCircle(x, y, ROBOT_RADIUS);
 
-        double x1 = x + Math.cos(heading) * ROBOT_RADIUS * 0.5;
-        double y1 = y + Math.sin(heading) * ROBOT_RADIUS * 0.5;
+        double endX = x + Math.cos(heading) * ROBOT_RADIUS;
+        double endY = y + Math.sin(heading) * ROBOT_RADIUS;
 
-        double x2 = x + Math.cos(heading) * ROBOT_RADIUS;
-        double y2 = y + Math.sin(heading) * ROBOT_RADIUS;
-
-        c.strokeLine(x1, y1, x2, y2);
+        c.strokeLine(x, y, endX, endY);
     }
 
 
@@ -65,7 +62,7 @@ public class DashboardDrawing {
         double[] ys = history.getYPositionsArray();
 
         for (int i = 0; i < xs.length - 1; i++) {
-            c.strokeLine(-xs[i], -ys[i], -xs[i + 1], -ys[i + 1]);
+            c.strokeLine(xs[i], ys[i], xs[i + 1], ys[i + 1]);
         }
     }
 }
