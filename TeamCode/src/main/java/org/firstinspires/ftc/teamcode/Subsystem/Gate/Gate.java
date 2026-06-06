@@ -11,8 +11,11 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 @Config
 public class Gate extends SubsystemBase {
     Servo gate;
-    public static final double position = 0;
 
+    /** Tuning: set this live from FTC Dashboard to override the servo position. 0 = no override. */
+    public static double tuningPosition = 0.0;
+
+    private double commandedPosition = -1.0;
     private final Telemetry telemetry;
 
     public Gate(HardwareMap hardwareMap){
@@ -24,16 +27,33 @@ public class Gate extends SubsystemBase {
         return gate.getPosition();
     }
 
+    /**
+     * Sets the servo position directly (0.0 to 1.0).
+     */
+    public void setPosition(double position) {
+        commandedPosition = position;
+        gate.setPosition(position);
+    }
+
     public void Open(){
-        gate.setPosition(GateConstants.GateOpen);
+        setPosition(GateConstants.GateOpen);
     }
     public void Close(){
-        gate.setPosition(GateConstants.GateClosed);
+        setPosition(GateConstants.GateClosed);
     }
 
     @Override
     public void periodic(){
+        // Allow FTC Dashboard tuningPosition to override mid-match
+        if (tuningPosition > 0.0) {
+            gate.setPosition(tuningPosition);
+        } else if (commandedPosition >= 0.0) {
+            gate.setPosition(commandedPosition);
+        }
+
         telemetry.addData("[Gate] Position", getPosition());
+        telemetry.addData("[Gate] Commanded", commandedPosition);
+        telemetry.addData("[Gate] Tuning", tuningPosition);
         telemetry.update();
     }
 }

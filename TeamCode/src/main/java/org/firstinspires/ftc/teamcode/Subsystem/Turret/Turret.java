@@ -15,10 +15,28 @@ import com.seattlesolvers.solverslib.util.InterpLUT;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Represents a recorded (distance, velocity) calibration point for the flywheel lookup table.
+ */
+class VelocityCalibrationPoint {
+    public final double distance;
+    public final int velocity;
+    public VelocityCalibrationPoint(double distance, int velocity) {
+        this.distance = distance;
+        this.velocity = velocity;
+    }
+}
+
 @Config
 public class Turret extends SubsystemBase {
 
     public static int tuningVelocity = 0;
+
+    /** Tuning: set to non-zero to manually drive the turret motor (bypasses PID). */
+    public static double manualTurretPower = 0.0;
 
     private final DcMotorEx turret;
 
@@ -49,13 +67,48 @@ public class Turret extends SubsystemBase {
     private static final double MIN_DISTANCE = 24.0;
     private static final double MAX_DISTANCE = 144.0;
 
+    // ── Velocity Calibration Recording ──────────────────────────────────────────
+
+    private final List<VelocityCalibrationPoint> calibrationPoints = new ArrayList<>();
+
+    public void recordCalibrationPoint() {
+        calibrationPoints.add(new VelocityCalibrationPoint(distance, targetVelocity));
+    }
+
+   
+    public List<VelocityCalibrationPoint> getCalibrationPoints() {
+        return calibrationPoints;
+    }
+
+    public void clearCalibrationPoints() {
+        calibrationPoints.clear();
+    }
+
+    public String getCalibrationCode() {
+        if (calibrationPoints.isEmpty()) return "// No calibration points recorded.";
+        StringBuilder sb = new StringBuilder();
+        for (VelocityCalibrationPoint p : calibrationPoints) {
+            sb.append("velocityInterpolation.add(")
+              .append(String.format("%.1f", p.distance)).append(", ")
+              .append(p.velocity).append(");\n");
+        }
+        sb.append("velocityInterpolation.createLUT();");
+        return sb.toString();
+    }
+
+    public String getLastCalibrationSummary() {
+        if (calibrationPoints.isEmpty()) return "none";
+        VelocityCalibrationPoint last = calibrationPoints.get(calibrationPoints.size() - 1);
+        return String.format("dist=%.1f, vel=%d", last.distance, last.velocity);
+    }
+
+    public int getCalibrationPointCount() {
+        return calibrationPoints.size();
+    }
+
     public Turret(HardwareMap hardwareMap) {
         telemetry = FtcDashboard.getInstance().getTelemetry();
 
-        // Turret motor — the REV Through Bore Encoder V1 is wired as a quadrature
-        // encoder on this motor port, so turret.getCurrentPosition() reads encoder
-        // ticks directly.  The internal motor encoder is overridden by the external
-        // Through Bore Encoder's A/B channels.
         turret = hardwareMap.get(DcMotorEx.class, TurretConstants.HMTurret);
 
         // Shooter flywheels
@@ -93,34 +146,7 @@ public class Turret extends SubsystemBase {
         );
     }
 
-    // ── Encoder-to-Angle Conversion ────────────────────────────────────────────
-    //
-    //   turretAngle_rad = (encoderTicks / ENCODER_CPR) × 2π / TURRET_GEAR_RATIO
-    //                     + turretEncoderOffset
-    //
-    // ZEROING STRATEGY
-    //   The encoder is zeroed (STOP_AND_RESET_ENCODER) in reinitMotors(), called
-    //   during construction.  This means "zero" is defined as the turret position
-    //   at robot init / OpMode start.  The turretEncoderOffset constant is tuned
-    //   so that getTurretAngle() reports 0 when the turret physically points at
-    //   the reference direction (typically straight ahead / toward the field
-    //   centre-line).
-    //
-    //   If the turret is not at the physical zero at init time, the offset will
-    //   still make the math work for aiming — but the full ±130° range must be
-    //   reachable.  Verify on the robot.
-    //
-    // LIMIT PROTECTION
-    //   Hard-stop protection prevents the motor from driving further into a
-    //   mechanical stop when the angle is already past TURRET_HARD_LIMIT_RADIANS.
-    //   The PID output is only clamped in the direction that would worsen the
-    //   over-travel; it is still allowed in the escape direction.
-
-    /**
-     * Returns the current turret angle in radians, normalized to [-π, π].
-     * Reads the quadrature encoder ticks from the turret motor port and converts
-     * to radians using ENCODER_CPR, TURRET_GEAR_RATIO, and turretEncoderOffset.
-     */
+   
     public double getTurretAngle() {
         int ticks       = turret.getCurrentPosition();
         double radians  = (ticks / TurretConstants.ENCODER_CPR) * 2.0 * Math.PI;
@@ -128,23 +154,13 @@ public class Turret extends SubsystemBase {
         return normalizeAngle(radians + TurretConstants.turretEncoderOffset);
     }
 
-    /**
-     * Returns the raw encoder tick count from the turret motor port.
-     * Useful for calibrating turretEncoderOffset.
-     */
     public int getTurretEncoderTicks() {
         return turret.getCurrentPosition();
     }
 
-    /**
-     * Returns distance (inches) from the robot's current pose to the target goal.
-     */
     public double getDistance() {
         return distance;
     }
-
-    // ── Shooter ────────────────────────────────────────────────────────────────
-
     public boolean atVelocity() {
         final int TOLERANCE = 20; // ticks/sec
         return Math.abs(targetVelocity - shooter1.getVelocity()) < TOLERANCE
@@ -157,14 +173,8 @@ public class Turret extends SubsystemBase {
         shooter2.setVelocity(velocity);
     }
 
-    // ── Initialization ─────────────────────────────────────────────────────────
-
     public void reinitMotors() {
-        // Stop and reset the turret motor encoder.  Because the REV Through Bore
-        // Encoder V1 is wired to this motor port, the encoder ticks reflect the
-        // external encoder, not the internal motor encoder.  This establishes the
-        // zero position for getTurretAngle() at the turret's physical position
-        // when init() is called.
+     
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -177,7 +187,7 @@ public class Turret extends SubsystemBase {
                 new PIDFCoefficients(0, 0, 0, 0));
     }
 
-    // ── SubsystemBase ──────────────────────────────────────────────────────────
+   
 
     @Override
     public void periodic() {
@@ -189,6 +199,16 @@ public class Turret extends SubsystemBase {
     }
 
     private void updateTurret() {
+        // Manual turret override for tuning — bypasses PID entirely
+        if (manualTurretPower != 0.0) {
+            double power = Range.clip(manualTurretPower, -0.7, 0.7);
+            turret.setPower(power);
+
+            // Still compute distance for telemetry
+            distance = botPose.distanceFrom(poseToAim);
+            return;
+        }
+
         targetAngleFC = -Math.atan2(
                 poseToAim.getY() - botPose.getY(),
                 poseToAim.getX() - botPose.getX()
@@ -250,6 +270,7 @@ public class Turret extends SubsystemBase {
         telemetry.addData("[Turret] At Hard Limit",
                 Math.abs(getTurretAngle()) >= TurretConstants.TURRET_HARD_LIMIT_RADIANS);
         telemetry.addData("[Turret] Distance",          distance);
+        telemetry.addData("[Turret] Manual Power",      manualTurretPower);
         telemetry.addData("[Turret] Target Velocity",   targetVelocity);
         telemetry.addData("[Turret] Shooter1 Velocity", shooter1.getVelocity());
         telemetry.addData("[Turret] Shooter2 Velocity", shooter2.getVelocity());
