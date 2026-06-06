@@ -4,6 +4,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.DashboardCore;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLStatus;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
@@ -13,8 +14,8 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 public abstract class LimelightBase {
 
-    protected Limelight3A limelight;
-    protected Telemetry telemetry;
+    Limelight3A limelight;
+    Telemetry telemetry;
     protected boolean hasValidDetection = false;
 
     protected void init(
