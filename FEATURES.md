@@ -53,6 +53,7 @@ This document describes every major feature of the DecodeNL FTC robot at a funct
 
 **Behavior:**
 - The turret rotates horizontally to face the target goal. A PID controller continuously adjusts the rotation angle as the robot moves.
+- Turret position is sensed by a REV Through Bore Encoder V1 wired as a quadrature encoder on the turret motor port. Encoder ticks are converted to radians using CPR = 8192 (quadrature 4× mode) and the gear ratio. The encoder is zeroed (STOP_AND_RESET_ENCODER) at OpMode init, and a tunable offset aligns the zero to the field reference direction.
 - Two flywheel motors spin up to a distance-dependent velocity, calculated by interpolating from a pre-calibrated lookup table.
 - A hood servo adjusts the launch angle based on distance, also via an interpolated lookup table.
 - The system compensates for robot motion by computing a "virtual robot pose" — it looks ahead along the robot's movement vector to lead the target.

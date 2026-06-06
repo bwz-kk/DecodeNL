@@ -4,7 +4,6 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.math.Vector;
-import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -23,15 +22,8 @@ public class Turret extends SubsystemBase {
 
     private final DcMotorEx turret;
 
-    /**
-     * REV Through Bore Encoder V1 analog output.
-     * Wired to an analog input port on the Control Hub.
-     * Outputs 0–3.3 V across 0–360°.
-     */
-    private final AnalogInput turretEncoder;
-
+    /** Shooter flywheels */
     private final DcMotorEx shooter1;
-
     private final DcMotorEx shooter2;
 
     private final InterpLUT velocityInterpolation = new InterpLUT();
@@ -60,11 +52,11 @@ public class Turret extends SubsystemBase {
     public Turret(HardwareMap hardwareMap) {
         telemetry = FtcDashboard.getInstance().getTelemetry();
 
-        // Turret motor
+        // Turret motor — the REV Through Bore Encoder V1 is wired as a quadrature
+        // encoder on this motor port, so turret.getCurrentPosition() reads encoder
+        // ticks directly.  The internal motor encoder is overridden by the external
+        // Through Bore Encoder's A/B channels.
         turret = hardwareMap.get(DcMotorEx.class, TurretConstants.HMTurret);
-
-        // REV Through Bore Encoder V1 — analog output
-        turretEncoder = hardwareMap.get(AnalogInput.class, TurretConstants.HMTurretEncoder);
 
         // Shooter flywheels
         shooter1 = hardwareMap.get(DcMotorEx.class, TurretConstants.HMShooter1);
@@ -74,9 +66,13 @@ public class Turret extends SubsystemBase {
         buildVelocityTable();
     }
 
+    // ── Configuration ──────────────────────────────────────────────────────────
+
     public void setSide(TurretConstants.SIDES side) {
         this.side = side;
     }
+
+    // ── Pose Updates ───────────────────────────────────────────────────────────
 
     public void updateBotPose(Pose pose) {
         this.lastPose = this.botPose;
@@ -97,24 +93,47 @@ public class Turret extends SubsystemBase {
         );
     }
 
+    // ── Encoder-to-Angle Conversion ────────────────────────────────────────────
+    //
+    //   turretAngle_rad = (encoderTicks / ENCODER_CPR) × 2π / TURRET_GEAR_RATIO
+    //                     + turretEncoderOffset
+    //
+    // ZEROING STRATEGY
+    //   The encoder is zeroed (STOP_AND_RESET_ENCODER) in reinitMotors(), called
+    //   during construction.  This means "zero" is defined as the turret position
+    //   at robot init / OpMode start.  The turretEncoderOffset constant is tuned
+    //   so that getTurretAngle() reports 0 when the turret physically points at
+    //   the reference direction (typically straight ahead / toward the field
+    //   centre-line).
+    //
+    //   If the turret is not at the physical zero at init time, the offset will
+    //   still make the math work for aiming — but the full ±130° range must be
+    //   reachable.  Verify on the robot.
+    //
+    // LIMIT PROTECTION
+    //   Hard-stop protection prevents the motor from driving further into a
+    //   mechanical stop when the angle is already past TURRET_HARD_LIMIT_RADIANS.
+    //   The PID output is only clamped in the direction that would worsen the
+    //   over-travel; it is still allowed in the escape direction.
+
     /**
      * Returns the current turret angle in radians, normalized to [-π, π].
-     * Reads the REV Through Bore Encoder V1 analog output and converts to radians,
-     * applying gear ratio and user-configured offset.
+     * Reads the quadrature encoder ticks from the turret motor port and converts
+     * to radians using ENCODER_CPR, TURRET_GEAR_RATIO, and turretEncoderOffset.
      */
     public double getTurretAngle() {
-        double voltage    = turretEncoder.getVoltage();
-        double rawDegrees = (voltage / TurretConstants.MAX_ENCODER_VOLTAGE) * 360.0;
-        double rawRadians = Math.toRadians(rawDegrees / TurretConstants.TURRET_GEAR_RATIO);
-        return normalizeAngle(rawRadians + TurretConstants.turretEncoderOffset);
+        int ticks       = turret.getCurrentPosition();
+        double radians  = (ticks / TurretConstants.ENCODER_CPR) * 2.0 * Math.PI;
+        radians        /= TurretConstants.TURRET_GEAR_RATIO;
+        return normalizeAngle(radians + TurretConstants.turretEncoderOffset);
     }
 
     /**
-     * Returns the raw analog voltage from the Through Bore Encoder.
+     * Returns the raw encoder tick count from the turret motor port.
      * Useful for calibrating turretEncoderOffset.
      */
-    public double getTurretEncoderVoltage() {
-        return turretEncoder.getVoltage();
+    public int getTurretEncoderTicks() {
+        return turret.getCurrentPosition();
     }
 
     /**
@@ -123,6 +142,8 @@ public class Turret extends SubsystemBase {
     public double getDistance() {
         return distance;
     }
+
+    // ── Shooter ────────────────────────────────────────────────────────────────
 
     public boolean atVelocity() {
         final int TOLERANCE = 20; // ticks/sec
@@ -136,7 +157,14 @@ public class Turret extends SubsystemBase {
         shooter2.setVelocity(velocity);
     }
 
+    // ── Initialization ─────────────────────────────────────────────────────────
+
     public void reinitMotors() {
+        // Stop and reset the turret motor encoder.  Because the REV Through Bore
+        // Encoder V1 is wired to this motor port, the encoder ticks reflect the
+        // external encoder, not the internal motor encoder.  This establishes the
+        // zero position for getTurretAngle() at the turret's physical position
+        // when init() is called.
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -215,7 +243,7 @@ public class Turret extends SubsystemBase {
     private void reportTelemetry() {
         telemetry.addData("[Turret] Angle (rad)",       getTurretAngle());
         telemetry.addData("[Turret] Angle (deg)",       Math.toDegrees(getTurretAngle()));
-        telemetry.addData("[Turret] Encoder Voltage",   getTurretEncoderVoltage());
+        telemetry.addData("[Turret] Encoder Ticks",     getTurretEncoderTicks());
         telemetry.addData("[Turret] Target Angle RC",   targetAngleFC + botPose.getHeading());
         telemetry.addData("[Turret] At Soft Limit",
                 Math.abs(getTurretAngle()) >= TurretConstants.TURRET_SOFT_LIMIT_RADIANS);
