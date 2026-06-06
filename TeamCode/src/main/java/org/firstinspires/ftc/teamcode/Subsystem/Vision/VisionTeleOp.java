@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.Subsystem.Vision;
 
+import static org.firstinspires.ftc.teamcode.Field.PosePreserve.turret;
+
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.pedropathing.follower.Follower;
@@ -12,14 +14,19 @@ import com.seattlesolvers.solverslib.util.TelemetryData;
 
 import org.firstinspires.ftc.teamcode.Commands.Intake.IntakeOff;
 import org.firstinspires.ftc.teamcode.Commands.Intake.IntakeOn;
+import org.firstinspires.ftc.teamcode.Commands.Intake.TransferSequence;
 import org.firstinspires.ftc.teamcode.Field.DashboardDrawing;
+import org.firstinspires.ftc.teamcode.Subsystem.Gate.Gate;
 import org.firstinspires.ftc.teamcode.Subsystem.Intake.Intake;
+import org.firstinspires.ftc.teamcode.Subsystem.Turret.Turret;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @TeleOp
 public class VisionTeleOp extends CommandOpMode {
     private Follower follower;
     private Intake intake;
+    private Gate gate;
+    private Turret turret;
 
     TelemetryData telemetryData = new TelemetryData(telemetry);
 
@@ -31,7 +38,10 @@ public class VisionTeleOp extends CommandOpMode {
         GamepadEx gamepadEx = new GamepadEx(gamepad1);
 
         follower = Constants.createFollower(hardwareMap);
+
         intake = new Intake(hardwareMap);
+        gate = new Gate(hardwareMap);
+        turret = new Turret(hardwareMap);
 
         visionOdometry = new VisionOdometry();
         visionOdometry.init(hardwareMap, telemetry);
@@ -40,6 +50,7 @@ public class VisionTeleOp extends CommandOpMode {
                 .whenActive(new IntakeOn(intake));
         gamepadEx.getGamepadButton(GamepadKeys.Button.LEFT_BUMPER)
                 .whenInactive(new IntakeOff(intake));
+        gamepadEx.getGamepadButton(GamepadKeys.Button.RIGHT_BUMPER).whenActive(new TransferSequence(intake, gate, turret));
 
         gamepadEx.getGamepadButton(GamepadKeys.Button.Y).whenActive(() -> {
             Pose currentPose = follower.getPose();
@@ -93,8 +104,8 @@ public class VisionTeleOp extends CommandOpMode {
         visionOdometry.update();
 
         follower.setTeleOpDrive(
-                -gamepad1.left_stick_y,
-                gamepad1.left_stick_x,
+                gamepad1.left_stick_y,
+                -gamepad1.left_stick_x,
                 -gamepad1.right_stick_x,
                 false
         );
