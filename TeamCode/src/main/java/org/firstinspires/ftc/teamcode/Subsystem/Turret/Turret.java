@@ -18,9 +18,6 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Represents a recorded (distance, velocity) calibration point for the flywheel lookup table.
- */
 class VelocityCalibrationPoint {
     public final double distance;
     public final int velocity;
@@ -35,13 +32,10 @@ public class Turret extends SubsystemBase {
 
     public static int tuningVelocity = 0;
 
-    /** Tuning: set to non-zero to manually drive the turret motor (bypasses PID). */
     public static double manualTurretPower = 0.0;
 
-    /** Tuning: command turret to a specific angle in degrees. Overrides auto-aim when non-zero. */
     public static double tuningTurretAngleDeg = 0.0;
 
-    /** Flywheel PIDF coefficients — tune live from FTC Dashboard. */
     public static double flywheelP = 0.0;
     public static double flywheelI = 0.0;
     public static double flywheelD = 0.0;
@@ -49,7 +43,6 @@ public class Turret extends SubsystemBase {
 
     private final DcMotorEx turret;
 
-    /** Shooter flywheels */
     private final DcMotorEx shooter1;
     private final DcMotorEx shooter2;
 
@@ -76,7 +69,6 @@ public class Turret extends SubsystemBase {
     private static final double MIN_DISTANCE = 24.0;
     private static final double MAX_DISTANCE = 144.0;
 
-    // ── Velocity Calibration Recording ──────────────────────────────────────────
 
     private final List<VelocityCalibrationPoint> calibrationPoints = new ArrayList<>();
 
@@ -120,7 +112,6 @@ public class Turret extends SubsystemBase {
 
         turret = hardwareMap.get(DcMotorEx.class, TurretConstants.HMTurret);
 
-        // Shooter flywheels
         shooter1 = hardwareMap.get(DcMotorEx.class, TurretConstants.HMShooter1);
         shooter2 = hardwareMap.get(DcMotorEx.class, TurretConstants.HMShooter2);
 
@@ -128,13 +119,11 @@ public class Turret extends SubsystemBase {
         buildVelocityTable();
     }
 
-    // ── Configuration ──────────────────────────────────────────────────────────
 
     public void setSide(TurretConstants.SIDES side) {
         this.side = side;
     }
 
-    // ── Pose Updates ───────────────────────────────────────────────────────────
 
     public void updateBotPose(Pose pose) {
         this.lastPose = this.botPose;
@@ -208,7 +197,6 @@ public class Turret extends SubsystemBase {
     }
 
     private void updateTurret() {
-        // Manual turret override for tuning — bypasses PID entirely
         if (manualTurretPower != 0.0) {
             double power = Range.clip(manualTurretPower, -0.7, 0.7);
             turret.setPower(power);
@@ -216,7 +204,6 @@ public class Turret extends SubsystemBase {
             return;
         }
 
-        // Tuning: command turret to a specific angle in degrees
         if (tuningTurretAngleDeg != 0.0) {
             double targetRad = Math.toRadians(tuningTurretAngleDeg);
             targetRad = Range.clip(targetRad,
@@ -264,7 +251,6 @@ public class Turret extends SubsystemBase {
     }
 
     private void updateShooter() {
-        // Apply flywheel PIDF from Dashboard if any coefficient is non-zero
         if (flywheelP != 0.0 || flywheelI != 0.0 || flywheelD != 0.0 || flywheelF != 0.0) {
             PIDFCoefficients coeffs = new PIDFCoefficients(flywheelP, flywheelI, flywheelD, flywheelF);
             shooter1.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, coeffs);

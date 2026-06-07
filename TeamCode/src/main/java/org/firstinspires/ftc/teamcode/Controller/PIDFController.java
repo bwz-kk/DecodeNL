@@ -3,22 +3,18 @@ package org.firstinspires.ftc.teamcode.Controller;
 import com.qualcomm.robotcore.util.Range;
 
 public class PIDFController {
-    // Ganhos
     private double kP;
     private double kI;
     private double kD;
     private double kF;
 
-    // Estado interno
     private double setpoint = 0.0;
     private double integralSum = 0.0;
     private double lastError = 0.0;
 
-    // Limites
     private double integralLimit = 1.0;
     private double outputLimit = 1.0;
 
-    // Tempo
     private long lastTime = System.nanoTime();
 
     public PIDFController(double kP, double kI, double kD, double kF) {
@@ -86,4 +82,3 @@ public class PIDFController {
         return Range.clip(output, -outputLimit, outputLimit);
     }
 }
-
