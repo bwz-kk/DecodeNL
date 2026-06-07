@@ -38,6 +38,15 @@ public class Turret extends SubsystemBase {
     /** Tuning: set to non-zero to manually drive the turret motor (bypasses PID). */
     public static double manualTurretPower = 0.0;
 
+    /** Tuning: command turret to a specific angle in degrees. Overrides auto-aim when non-zero. */
+    public static double tuningTurretAngleDeg = 0.0;
+
+    /** Flywheel PIDF coefficients — tune live from FTC Dashboard. */
+    public static double flywheelP = 0.0;
+    public static double flywheelI = 0.0;
+    public static double flywheelD = 0.0;
+    public static double flywheelF = 0.0;
+
     private final DcMotorEx turret;
 
     /** Shooter flywheels */
@@ -203,8 +212,20 @@ public class Turret extends SubsystemBase {
         if (manualTurretPower != 0.0) {
             double power = Range.clip(manualTurretPower, -0.7, 0.7);
             turret.setPower(power);
+            distance = botPose.distanceFrom(poseToAim);
+            return;
+        }
 
-            // Still compute distance for telemetry
+        // Tuning: command turret to a specific angle in degrees
+        if (tuningTurretAngleDeg != 0.0) {
+            double targetRad = Math.toRadians(tuningTurretAngleDeg);
+            targetRad = Range.clip(targetRad,
+                    -TurretConstants.TURRET_SOFT_LIMIT_RADIANS,
+                    TurretConstants.TURRET_SOFT_LIMIT_RADIANS);
+            double currentAngle = getTurretAngle();
+            double rawPower = turretController.calculate(currentAngle, targetRad) / 2.0;
+            double power = Range.clip(rawPower, -0.7, 0.7);
+            turret.setPower(power);
             distance = botPose.distanceFrom(poseToAim);
             return;
         }
@@ -216,27 +237,21 @@ public class Turret extends SubsystemBase {
 
         double targetAngleRC = normalizeAngle(targetAngleFC + botPose.getHeading());
 
-        // Apply alliance-specific mechanical offset
         if (side == TurretConstants.SIDES.RED) {
             targetAngleRC += TurretConstants.redOffset;
         } else {
             targetAngleRC += TurretConstants.blueOffset;
         }
 
-        // Clamp target to soft limits (±128° — 2° margin inside the ±130° mechanical hard stops)
         targetAngleRC = Range.clip(
                 targetAngleRC,
                 -TurretConstants.TURRET_SOFT_LIMIT_RADIANS,
                 TurretConstants.TURRET_SOFT_LIMIT_RADIANS
         );
 
-        // Read current angle from encoder and close the loop
         double currentAngle = getTurretAngle();
         double rawPower = turretController.calculate(currentAngle, targetAngleRC) / 2.0;
 
-        // Hard-stop protection: if the encoder already reads past the mechanical limit,
-        // prevent the motor from driving further in that direction.
-        // (PID output is still allowed in the escape direction.)
         boolean pastPositiveLimit = currentAngle >  TurretConstants.TURRET_HARD_LIMIT_RADIANS;
         boolean pastNegativeLimit = currentAngle < -TurretConstants.TURRET_HARD_LIMIT_RADIANS;
         if (pastPositiveLimit && rawPower > 0) rawPower = 0;
@@ -249,6 +264,13 @@ public class Turret extends SubsystemBase {
     }
 
     private void updateShooter() {
+        // Apply flywheel PIDF from Dashboard if any coefficient is non-zero
+        if (flywheelP != 0.0 || flywheelI != 0.0 || flywheelD != 0.0 || flywheelF != 0.0) {
+            PIDFCoefficients coeffs = new PIDFCoefficients(flywheelP, flywheelI, flywheelD, flywheelF);
+            shooter1.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, coeffs);
+            shooter2.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, coeffs);
+        }
+
         int desiredVelocity;
         if (tuningVelocity > 0) {
             desiredVelocity = tuningVelocity;
@@ -265,6 +287,7 @@ public class Turret extends SubsystemBase {
         telemetry.addData("[Turret] Angle (deg)",       Math.toDegrees(getTurretAngle()));
         telemetry.addData("[Turret] Encoder Ticks",     getTurretEncoderTicks());
         telemetry.addData("[Turret] Target Angle RC",   targetAngleFC + botPose.getHeading());
+        telemetry.addData("[Turret] Tuning Angle Deg",  tuningTurretAngleDeg);
         telemetry.addData("[Turret] At Soft Limit",
                 Math.abs(getTurretAngle()) >= TurretConstants.TURRET_SOFT_LIMIT_RADIANS);
         telemetry.addData("[Turret] At Hard Limit",
