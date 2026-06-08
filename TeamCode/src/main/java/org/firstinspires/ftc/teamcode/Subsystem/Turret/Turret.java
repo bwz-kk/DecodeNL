@@ -10,10 +10,10 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.util.Range;
 import com.seattlesolvers.solverslib.command.SubsystemBase;
-import com.seattlesolvers.solverslib.controller.PIDController;
 import com.seattlesolvers.solverslib.util.InterpLUT;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.Controller.PIDFController;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,17 +32,12 @@ public class Turret extends SubsystemBase {
 
     public static int tuningVelocity = 0;
 
-    public static double manualTurretPower = 0.0;
-
-    public static double tuningTurretAngleDeg = 0.0;
-
     public static double flywheelP = 0.0;
     public static double flywheelI = 0.0;
     public static double flywheelD = 0.0;
     public static double flywheelF = 0.0;
 
     private final DcMotorEx turret;
-
     private final DcMotorEx shooter1;
     private final DcMotorEx shooter2;
 
@@ -60,7 +55,7 @@ public class Turret extends SubsystemBase {
     private double targetAngleFC = 0.0;
     private int    targetVelocity = 0;
 
-    public PIDController turretController = new PIDController(0, 0, 0);
+    private PIDFController turretController = new PIDFController(0, 0, 0, 0);
 
     private TurretConstants.SIDES side = TurretConstants.SIDES.BLUE;
 
@@ -69,14 +64,12 @@ public class Turret extends SubsystemBase {
     private static final double MIN_DISTANCE = 24.0;
     private static final double MAX_DISTANCE = 144.0;
 
-
     private final List<VelocityCalibrationPoint> calibrationPoints = new ArrayList<>();
 
     public void recordCalibrationPoint() {
         calibrationPoints.add(new VelocityCalibrationPoint(distance, targetVelocity));
     }
 
-   
     public List<VelocityCalibrationPoint> getCalibrationPoints() {
         return calibrationPoints;
     }
@@ -109,21 +102,16 @@ public class Turret extends SubsystemBase {
 
     public Turret(HardwareMap hardwareMap) {
         telemetry = FtcDashboard.getInstance().getTelemetry();
-
         turret = hardwareMap.get(DcMotorEx.class, TurretConstants.HMTurret);
-
         shooter1 = hardwareMap.get(DcMotorEx.class, TurretConstants.HMShooter1);
         shooter2 = hardwareMap.get(DcMotorEx.class, TurretConstants.HMShooter2);
-
         reinitMotors();
         buildVelocityTable();
     }
 
-
     public void setSide(TurretConstants.SIDES side) {
         this.side = side;
     }
-
 
     public void updateBotPose(Pose pose) {
         this.lastPose = this.botPose;
@@ -144,7 +132,6 @@ public class Turret extends SubsystemBase {
         );
     }
 
-   
     public double getTurretAngle() {
         int ticks       = turret.getCurrentPosition();
         double radians  = (ticks / TurretConstants.ENCODER_CPR) * 2.0 * Math.PI;
@@ -159,8 +146,9 @@ public class Turret extends SubsystemBase {
     public double getDistance() {
         return distance;
     }
+
     public boolean atVelocity() {
-        final int TOLERANCE = 20; // ticks/sec
+        final int TOLERANCE = 20;
         return Math.abs(targetVelocity - shooter1.getVelocity()) < TOLERANCE
                 && Math.abs(targetVelocity - shooter2.getVelocity()) < TOLERANCE;
     }
@@ -172,7 +160,6 @@ public class Turret extends SubsystemBase {
     }
 
     public void reinitMotors() {
-     
         turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -185,37 +172,17 @@ public class Turret extends SubsystemBase {
                 new PIDFCoefficients(0, 0, 0, 0));
     }
 
-   
-
     @Override
     public void periodic() {
         poseToAim = TurretConstants.getGoalPose(side);
-
         updateTurret();
         updateShooter();
         reportTelemetry();
     }
 
     private void updateTurret() {
-        if (manualTurretPower != 0.0) {
-            double power = Range.clip(manualTurretPower, -0.7, 0.7);
-            turret.setPower(power);
-            distance = botPose.distanceFrom(poseToAim);
-            return;
-        }
-
-        if (tuningTurretAngleDeg != 0.0) {
-            double targetRad = Math.toRadians(tuningTurretAngleDeg);
-            targetRad = Range.clip(targetRad,
-                    -TurretConstants.TURRET_SOFT_LIMIT_RADIANS,
-                    TurretConstants.TURRET_SOFT_LIMIT_RADIANS);
-            double currentAngle = getTurretAngle();
-            double rawPower = turretController.calculate(currentAngle, targetRad) / 2.0;
-            double power = Range.clip(rawPower, -0.7, 0.7);
-            turret.setPower(power);
-            distance = botPose.distanceFrom(poseToAim);
-            return;
-        }
+        turretController.setPID(TurretConstants.turretP, TurretConstants.turretI, TurretConstants.turretD);
+        turretController.setF(TurretConstants.turretF);
 
         targetAngleFC = -Math.atan2(
                 poseToAim.getY() - botPose.getY(),
@@ -237,7 +204,8 @@ public class Turret extends SubsystemBase {
         );
 
         double currentAngle = getTurretAngle();
-        double rawPower = turretController.calculate(currentAngle, targetAngleRC) / 2.0;
+        turretController.setSetpoint(targetAngleRC);
+        double rawPower = turretController.calculate(currentAngle);
 
         boolean pastPositiveLimit = currentAngle >  TurretConstants.TURRET_HARD_LIMIT_RADIANS;
         boolean pastNegativeLimit = currentAngle < -TurretConstants.TURRET_HARD_LIMIT_RADIANS;
@@ -273,13 +241,7 @@ public class Turret extends SubsystemBase {
         telemetry.addData("[Turret] Angle (deg)",       Math.toDegrees(getTurretAngle()));
         telemetry.addData("[Turret] Encoder Ticks",     getTurretEncoderTicks());
         telemetry.addData("[Turret] Target Angle RC",   targetAngleFC + botPose.getHeading());
-        telemetry.addData("[Turret] Tuning Angle Deg",  tuningTurretAngleDeg);
-        telemetry.addData("[Turret] At Soft Limit",
-                Math.abs(getTurretAngle()) >= TurretConstants.TURRET_SOFT_LIMIT_RADIANS);
-        telemetry.addData("[Turret] At Hard Limit",
-                Math.abs(getTurretAngle()) >= TurretConstants.TURRET_HARD_LIMIT_RADIANS);
         telemetry.addData("[Turret] Distance",          distance);
-        telemetry.addData("[Turret] Manual Power",      manualTurretPower);
         telemetry.addData("[Turret] Target Velocity",   targetVelocity);
         telemetry.addData("[Turret] Shooter1 Velocity", shooter1.getVelocity());
         telemetry.addData("[Turret] Shooter2 Velocity", shooter2.getVelocity());

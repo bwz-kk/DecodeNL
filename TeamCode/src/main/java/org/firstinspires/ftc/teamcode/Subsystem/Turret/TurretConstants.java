@@ -26,6 +26,11 @@ public class TurretConstants {
 
     public static SIDES selectedSide = SIDES.BLUE;
 
+    public static double turretP = 0.0;
+    public static double turretI = 0.0;
+    public static double turretD = 0.0;
+    public static double turretF = 0.0;
+
     public enum SIDES {
         BLUE,
         RED
