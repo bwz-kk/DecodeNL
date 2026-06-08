@@ -32,6 +32,13 @@ public class Turret extends SubsystemBase {
 
     public static int tuningVelocity = 0;
 
+    // Add these static fields for FTC Dashboard tuning
+    public static double manualAngle = 0.0;  // Manual angle override in radians
+    public static boolean useManualAngle = false;  // Toggle manual angle control
+    public static double kP = 3.0;
+    public static double kI = 0.0;
+    public static double kD = 0.09;
+
     private final DcMotorEx turret;
     private final DcMotorEx shooter1;
     private final DcMotorEx shooter2;
@@ -141,6 +148,9 @@ public class Turret extends SubsystemBase {
 
     @Override
     public void periodic() {
+        // Update PID coefficients from dashboard
+        turretController = new PIDController(kP, kI, kD);
+
         Pose goalPose = TurretConstants.getGoalPose(side);
         updateTurret(goalPose);
         updateShooter();
@@ -148,15 +158,22 @@ public class Turret extends SubsystemBase {
     }
 
     private void updateTurret(Pose goalPose) {
-        double dx = goalPose.getX() - botPose.getX();
-        double dy = goalPose.getY() - botPose.getY();
-        double angleToGoalFC = Math.atan2(dy, dx);
-        double targetAngleRC = normalizeAngle(angleToGoalFC - botPose.getHeading());
+        double targetAngleRC;
 
-        if (side == TurretConstants.SIDES.RED) {
-            targetAngleRC += TurretConstants.redOffset;
+        // Check if using manual angle override
+        if (useManualAngle) {
+            targetAngleRC = manualAngle;
         } else {
-            targetAngleRC += TurretConstants.blueOffset;
+            double dx = goalPose.getX() - botPose.getX();
+            double dy = goalPose.getY() - botPose.getY();
+            double angleToGoalFC = Math.atan2(dy, dx);
+            targetAngleRC = normalizeAngle(angleToGoalFC - botPose.getHeading());
+
+            if (side == TurretConstants.SIDES.RED) {
+                targetAngleRC += TurretConstants.redOffset;
+            } else {
+                targetAngleRC += TurretConstants.blueOffset;
+            }
         }
 
         targetAngleRC = Range.clip(targetAngleRC,
@@ -184,7 +201,7 @@ public class Turret extends SubsystemBase {
             setShooterVelocity(tuningVelocity);
         } else {
             setShooterVelocity(
-                    (int) velocityInterpolation.get(Range.clip(distance, 59, 144))
+                    (int) velocityInterpolation.get(Range.clip(distance, 0, 1))
             );
         }
     }
@@ -215,11 +232,8 @@ public class Turret extends SubsystemBase {
     }
 
     private void buildVelocityTable() {
-        velocityInterpolation.add(58, 840);
-        velocityInterpolation.add(76, 920);
-        velocityInterpolation.add(94, 990);
-        velocityInterpolation.add(108, 1090);
-        velocityInterpolation.add(145, 1255);
+        velocityInterpolation.add(1, 1);
+        velocityInterpolation.add(2, 2);
         velocityInterpolation.createLUT();
     }
 }
