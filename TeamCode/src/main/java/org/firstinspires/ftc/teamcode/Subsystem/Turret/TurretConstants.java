@@ -1,7 +1,9 @@
 package org.firstinspires.ftc.teamcode.Subsystem.Turret;
 
+import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.geometry.Pose;
 
+@Config
 public class TurretConstants {
 
     public static final String HMTurret = "turret";
