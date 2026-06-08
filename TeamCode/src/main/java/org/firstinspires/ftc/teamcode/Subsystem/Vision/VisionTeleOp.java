@@ -38,6 +38,7 @@ public class VisionTeleOp extends CommandOpMode {
         GamepadEx gamepadEx = new GamepadEx(gamepad1);
 
         follower = Constants.createFollower(hardwareMap);
+        follower.setPose(new Pose(112, 135, Math.toRadians(-90)));
 
         intake = new Intake(hardwareMap);
         gate = new Gate(hardwareMap);
@@ -103,12 +104,7 @@ public class VisionTeleOp extends CommandOpMode {
 
         visionOdometry.update();
 
-        follower.setTeleOpDrive(
-                gamepad1.left_stick_y,
-                -gamepad1.left_stick_x,
-                -gamepad1.right_stick_x,
-                false
-        );
+        follower.setTeleOpDrive(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x, false);
         follower.update();
 
         TelemetryPacket packet = new TelemetryPacket();
@@ -117,6 +113,7 @@ public class VisionTeleOp extends CommandOpMode {
 
         telemetryData.addData("Pose robô X", follower.getPose().getX());
         telemetryData.addData("Pose robô Y", follower.getPose().getY());
+        telemetryData.addData("Robot Heading: ", follower.getPose().getHeading());
         telemetryData.addData("Tag válida", visionOdometry.hasValidDetection());
         if (visionOdometry.hasValidDetection()) {
             Pose visionPose = visionOdometry.getCurrentVisionPose();

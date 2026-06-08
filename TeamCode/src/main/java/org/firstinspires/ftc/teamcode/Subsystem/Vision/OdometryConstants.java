@@ -16,5 +16,6 @@ public final class OdometryConstants {
     public static final double KALMAN_MEASUREMENT_NOISE = 1.0;
     public static final double KALMAN_INITIAL_ERROR = 100.0;
     public static final int[] VALID_TAG_IDS = {20, 24};
+    public static final double X_SIGN_FLIP = -1.0;
 
 }

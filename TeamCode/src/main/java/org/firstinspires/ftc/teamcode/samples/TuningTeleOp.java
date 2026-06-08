@@ -1,12 +1,14 @@
 package org.firstinspires.ftc.teamcode.samples;
 
 import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.seattlesolvers.solverslib.command.CommandOpMode;
 import com.seattlesolvers.solverslib.util.TelemetryData;
 
 import org.firstinspires.ftc.teamcode.Subsystem.Gate.Gate;
 import org.firstinspires.ftc.teamcode.Subsystem.Turret.Turret;
+import org.firstinspires.ftc.teamcode.Subsystem.Turret.TurretConstants;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @TeleOp(name = "Tuning TeleOp", group = "Tuning")
@@ -19,8 +21,13 @@ public class TuningTeleOp extends CommandOpMode {
     @Override
     public void initialize() {
         follower = Constants.createFollower(hardwareMap);
+        follower.setPose(new Pose(112, 135, Math.toRadians(-90)));
         turret = new Turret(hardwareMap);
         gate = new Gate(hardwareMap);
+
+        TurretConstants.selectedSide = TurretConstants.SIDES.RED;
+        turret.setSide(TurretConstants.SIDES.RED);
+
         telemetryData = new TelemetryData(telemetry);
         super.reset();
         follower.startTeleopDrive();

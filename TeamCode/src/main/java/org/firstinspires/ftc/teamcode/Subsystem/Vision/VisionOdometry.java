@@ -124,6 +124,7 @@ public class VisionOdometry extends LimelightBase {
         }
 
         double x = botpose.getPosition().x * OdometryConstants.METERS_TO_INCHES
+                * OdometryConstants.X_SIGN_FLIP
                 - OdometryConstants.CAMERA_OFFSET_X;
         double y = botpose.getPosition().y * OdometryConstants.METERS_TO_INCHES
                 - OdometryConstants.CAMERA_OFFSET_Y;
@@ -156,7 +157,8 @@ public class VisionOdometry extends LimelightBase {
     }
 
     private Pose convertAndCompensate(@NonNull Pose3D rawPose) {
-        double x = rawPose.getPosition().x * OdometryConstants.METERS_TO_INCHES;
+        double x = rawPose.getPosition().x * OdometryConstants.METERS_TO_INCHES
+                * OdometryConstants.X_SIGN_FLIP;
         double y = rawPose.getPosition().y * OdometryConstants.METERS_TO_INCHES;
         double heading = rawPose.getOrientation().getYaw();
 
