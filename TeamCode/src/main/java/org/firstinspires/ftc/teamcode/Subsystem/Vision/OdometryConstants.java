@@ -1,5 +1,8 @@
 package org.firstinspires.ftc.teamcode.Subsystem.Vision;
 
+import com.acmerobotics.dashboard.config.Config;
+
+@Config
 public final class OdometryConstants {
 
     public static final String HARDWARE_NAME = "odometryLimelight";

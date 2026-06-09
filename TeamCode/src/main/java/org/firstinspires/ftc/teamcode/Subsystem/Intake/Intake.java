@@ -8,6 +8,7 @@ public class Intake extends SubsystemBase {
 
     DcMotor Intake1;
     double currentPower = 0;
+    double power = 0;
 
     public Intake(HardwareMap hardwareMap) {
         Intake1 = hardwareMap.get(DcMotor.class, IntakeConstants.HMIntake1);
@@ -26,4 +27,5 @@ public class Intake extends SubsystemBase {
     public void periodic() {
         Intake1.setPower(currentPower);
     }
+
 }

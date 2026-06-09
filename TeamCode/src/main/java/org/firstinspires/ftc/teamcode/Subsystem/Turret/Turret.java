@@ -1,5 +1,8 @@
 package org.firstinspires.ftc.teamcode.Subsystem.Turret;
 
+import static org.firstinspires.ftc.teamcode.Subsystem.Turret.TurretConstants.maxShootingDistance;
+import static org.firstinspires.ftc.teamcode.Subsystem.Turret.TurretConstants.minShootingDistance;
+
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.geometry.Pose;
@@ -7,6 +10,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.util.Range;
 import com.seattlesolvers.solverslib.command.SubsystemBase;
 import com.seattlesolvers.solverslib.controller.PIDController;
@@ -20,7 +24,7 @@ import java.util.List;
 @Config
 public class Turret extends SubsystemBase {
 
-    public static int tuningVelocity = 0;
+    //public static int tuningVelocity = 0;
 
     public static double manualAngle = 0.0;
     public static boolean useManualAngle = false;
@@ -38,7 +42,6 @@ public class Turret extends SubsystemBase {
     private Pose botPose = new Pose(0, 0, 0);
 
     private double distance = 0.0;
-    private int targetVelocity = 0;
 
     public PIDController turretController = new PIDController(3, 0, 0.09);
 
@@ -48,39 +51,6 @@ public class Turret extends SubsystemBase {
 
     private final List<VelocityCalibrationPoint> calibrationPoints = new ArrayList<>();
 
-    public void recordCalibrationPoint() {
-        calibrationPoints.add(new VelocityCalibrationPoint(distance, targetVelocity));
-    }
-
-    public List<VelocityCalibrationPoint> getCalibrationPoints() {
-        return calibrationPoints;
-    }
-
-    public void clearCalibrationPoints() {
-        calibrationPoints.clear();
-    }
-
-    public String getCalibrationCode() {
-        if (calibrationPoints.isEmpty()) return "";
-        StringBuilder sb = new StringBuilder();
-        for (VelocityCalibrationPoint p : calibrationPoints) {
-            sb.append("velocityInterpolation.add(")
-                    .append(String.format("%.1f", p.distance)).append(", ")
-                    .append(p.velocity).append(");\n");
-        }
-        sb.append("velocityInterpolation.createLUT();");
-        return sb.toString();
-    }
-
-    public String getLastCalibrationSummary() {
-        if (calibrationPoints.isEmpty()) return "none";
-        VelocityCalibrationPoint last = calibrationPoints.get(calibrationPoints.size() - 1);
-        return String.format("dist=%.1f, vel=%d", last.distance, last.velocity);
-    }
-
-    public int getCalibrationPointCount() {
-        return calibrationPoints.size();
-    }
 
     public Turret(HardwareMap hardwareMap) {
         telemetry = FtcDashboard.getInstance().getTelemetry();
@@ -88,7 +58,14 @@ public class Turret extends SubsystemBase {
         shooter1 = hardwareMap.get(DcMotorEx.class, TurretConstants.HMShooter1);
         shooter2 = hardwareMap.get(DcMotorEx.class, TurretConstants.HMShooter2);
         reinitMotors();
-        buildVelocityTable();
+        updateShooter();
+
+        velocityInterpolation.add(minShootingDistance, 810);
+        velocityInterpolation.add(65, 840);
+        velocityInterpolation.add(94, 900);
+        velocityInterpolation.add(120, 1050);
+        velocityInterpolation.add(maxShootingDistance, 1250);
+        velocityInterpolation.createLUT();
     }
 
     public void setSide(TurretConstants.SIDES side) {
@@ -116,7 +93,6 @@ public class Turret extends SubsystemBase {
     }
 
     public void setShooterVelocity(int velocity) {
-        targetVelocity = velocity;
         shooter1.setVelocity(velocity);
         shooter2.setVelocity(velocity);
     }
@@ -134,8 +110,11 @@ public class Turret extends SubsystemBase {
         shooter2.setDirection(DcMotorSimple.Direction.FORWARD);
         shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooter2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooter1.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(400, 0, 100, 17.2));
+        shooter2.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(400, 0, 100, 17.2));
     }
 
+        int targetVelocity = 0;
     @Override
     public void periodic() {
         // Update PID coefficients from dashboard
@@ -143,8 +122,8 @@ public class Turret extends SubsystemBase {
 
         Pose goalPose = TurretConstants.getGoalPose(side);
         updateTurret(goalPose);
-        updateShooter();
         reportTelemetry(goalPose);
+        updateShooter();
     }
 
     /**
@@ -207,23 +186,12 @@ public class Turret extends SubsystemBase {
         distance = botPose.distanceFrom(goalPose);
     }
 
-    /**
-     * Update shooter flywheel velocity based on distance to goal.
-     * If tuningVelocity is set, use that instead (for manual testing).
-     */
     private void updateShooter() {
-        if (tuningVelocity > 0) {
-            // Manual tuning mode: use fixed velocity
-            setShooterVelocity(tuningVelocity);
-        } else {
-            // Automatic mode: interpolate velocity based on distance
-            double clippedDistance = Range.clip(
-                    distance,
-                    TurretConstants.minShootingDistance,
-                    TurretConstants.maxShootingDistance
+            setShooterVelocity(
+                    (int) velocityInterpolation.get(Range.clip(distance, minShootingDistance + 1, maxShootingDistance - 1))
             );
-            setShooterVelocity((int) velocityInterpolation.get(clippedDistance));
-        }
+            //setShooterVelocity(tuningVelocity);
+
     }
 
     /**
@@ -233,7 +201,7 @@ public class Turret extends SubsystemBase {
         double currentAngle = getTurretAngle();
         double error = turretController.getPositionError();
         double targetAngle = currentAngle + error;
-        
+
         telemetry.addData("[Turret] Current Angle (deg)", Math.toDegrees(currentAngle));
         telemetry.addData("[Turret] Target Angle (deg)", Math.toDegrees(targetAngle));
         telemetry.addData("[Turret] Error (deg)", Math.toDegrees(error));
@@ -248,39 +216,12 @@ public class Turret extends SubsystemBase {
         telemetry.addData("[Turret] At Velocity", atVelocity());
         telemetry.addData("[Turret] Use Manual Angle", useManualAngle);
         telemetry.addData("[Turret] Manual Angle (deg)", Math.toDegrees(manualAngle));
-        telemetry.addData("[Calibration] Points Recorded", getCalibrationPointCount());
-        telemetry.addData("[Calibration] Last Point", getLastCalibrationSummary());
         telemetry.update();
     }
 
-    /**
-     * Normalize angle to [-π, π] range.
-     */
     private double normalizeAngle(double angle) {
         while (angle > Math.PI) angle -= 2 * Math.PI;
         while (angle < -Math.PI) angle += 2 * Math.PI;
         return angle;
-    }
-
-    /**
-     * Build velocity interpolation lookup table.
-     * CALIBRATION REQUIRED: Replace these placeholder values with real measurements.
-     * 
-     * Procedure:
-     * 1. Place robot at various distances from goal (24", 48", 72", etc.)
-     * 2. Set tuningVelocity in Dashboard to a test value
-     * 3. Adjust until shooter accurately scores
-     * 4. Note the distance and velocity
-     * 5. Add them to this table
-     * 6. Use getCalibrationCode() to generate the proper table
-     */
-    private void buildVelocityTable() {
-        // Placeholder values - MUST BE CALIBRATED FOR YOUR ROBOT
-        velocityInterpolation.add(24, 1200);    // 2 ft minimum range
-        velocityInterpolation.add(48, 1500);    // 4 ft
-        velocityInterpolation.add(72, 1800);    // 6 ft (typical range)
-        velocityInterpolation.add(120, 2200);   // 10 ft
-        velocityInterpolation.add(240, 2800);   // 20 ft maximum range
-        velocityInterpolation.createLUT();
     }
 }

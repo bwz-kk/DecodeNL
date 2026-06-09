@@ -19,6 +19,7 @@ import org.firstinspires.ftc.teamcode.Field.DashboardDrawing;
 import org.firstinspires.ftc.teamcode.Subsystem.Gate.Gate;
 import org.firstinspires.ftc.teamcode.Subsystem.Intake.Intake;
 import org.firstinspires.ftc.teamcode.Subsystem.Turret.Turret;
+import org.firstinspires.ftc.teamcode.Subsystem.Turret.TurretConstants;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @TeleOp
@@ -43,6 +44,9 @@ public class VisionTeleOp extends CommandOpMode {
         intake = new Intake(hardwareMap);
         gate = new Gate(hardwareMap);
         turret = new Turret(hardwareMap);
+
+        TurretConstants.selectedSide = TurretConstants.SIDES.RED;
+        turret.setSide(TurretConstants.SIDES.RED);
 
         visionOdometry = new VisionOdometry();
         visionOdometry.init(hardwareMap, telemetry);

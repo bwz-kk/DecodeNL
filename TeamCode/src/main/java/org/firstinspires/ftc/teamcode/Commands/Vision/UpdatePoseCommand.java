@@ -18,15 +18,13 @@ public class UpdatePoseCommand extends CommandBase {
 
     private static final String TAG = "UpdatePoseCommand";
 
-    private final Follower follower;
+    private Follower follower = null;
     private final VisionOdometry vision;
-    private final Pose fallbackPose;
+    private Pose fallbackPose = null;
     private boolean hasInitialized = false;
 
     public UpdatePoseCommand(
-            @NonNull Follower follower,
-            @NonNull VisionOdometry vision,
-            @NonNull Pose fallbackPose
+            @NonNull VisionOdometry vision
     ) {
         this.follower = follower;
         this.vision = vision;
