@@ -17,25 +17,14 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import java.util.ArrayList;
 import java.util.List;
 
-class VelocityCalibrationPoint {
-    public final double distance;
-    public final int velocity;
-    public VelocityCalibrationPoint(double distance, int velocity) {
-        this.distance = distance;
-        this.velocity = velocity;
-    }
-}
-
 @Config
 public class Turret extends SubsystemBase {
 
     public static int tuningVelocity = 0;
 
-    // Manual angle control for debugging
-    public static double manualAngle = 0.0;  // Manual angle override in radians
-    public static boolean useManualAngle = false;  // Toggle manual angle control
-    
-    // PID tuning via Dashboard
+    public static double manualAngle = 0.0;
+    public static boolean useManualAngle = false;
+
     public static double kP = 3.0;
     public static double kI = 0.0;
     public static double kD = 0.09;
@@ -106,15 +95,11 @@ public class Turret extends SubsystemBase {
         this.side = side;
     }
 
-    /**
-     * Calculate turret angle from encoder position.
-     * Converts encoder ticks to radians, then applies calibration offset.
-     */
     public double getTurretAngle() {
         int ticks = turret.getCurrentPosition();
         double radians = (ticks / TurretConstants.ENCODER_CPR) * 2.0 * Math.PI;
         radians /= TurretConstants.TURRET_GEAR_RATIO;
-        return normalizeAngle(radians + TurretConstants.turretEncoderOffset);
+        return normalizeAngle(radians - TurretConstants.turretEncoderOffset);
     }
 
     public int getTurretEncoderTicks() {
@@ -145,8 +130,8 @@ public class Turret extends SubsystemBase {
         turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
-        shooter1.setDirection(DcMotorSimple.Direction.REVERSE);
-        shooter2.setDirection(DcMotorSimple.Direction.REVERSE);
+        shooter1.setDirection(DcMotorSimple.Direction.FORWARD);
+        shooter2.setDirection(DcMotorSimple.Direction.FORWARD);
         shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooter2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
     }
@@ -168,53 +153,57 @@ public class Turret extends SubsystemBase {
      * applies alliance offset, and enforces hard limits.
      */
     private void updateTurret(Pose goalPose) {
-        double targetAngleRC;
 
-        // Check if using manual angle override for debugging
-        if (useManualAngle) {
-            targetAngleRC = manualAngle;
+        double goalAngleFC = -Math.atan2(
+                goalPose.getY() - botPose.getY(),
+                goalPose.getX() - botPose.getX()
+        );
+
+        double goalAngleBC = goalAngleFC + botPose.getHeading();
+
+        if (side == TurretConstants.SIDES.RED) {
+            goalAngleBC += TurretConstants.redOffset;
         } else {
-            // Calculate angle to goal in field-centric frame
-            double dx = goalPose.getX() - botPose.getX();
-            double dy = goalPose.getY() - botPose.getY();
-            double angleToGoalFC = Math.atan2(dy, dx);
-            
-            // Convert to robot-centric frame
-            targetAngleRC = normalizeAngle(angleToGoalFC - botPose.getHeading());
-
-            // Apply alliance-specific offset
-            if (side == TurretConstants.SIDES.RED) {
-                targetAngleRC += TurretConstants.redOffset;
-            } else {
-                targetAngleRC += TurretConstants.blueOffset;
-            }
+            goalAngleBC += TurretConstants.blueOffset;
         }
 
-        // Soft clip to turret range (allows PID to work near limits)
-        targetAngleRC = Range.clip(targetAngleRC,
-                -Math.toRadians(120), Math.toRadians(120));
+        double goalAngleBCCorrected = Range.clip(
+                goalAngleBC,
+                -TurretConstants.TURRET_SOFT_LIMIT_RADIANS,
+                TurretConstants.TURRET_SOFT_LIMIT_RADIANS
+        );
 
-        // Get current angle
+        boolean okToShoot = goalAngleBC == goalAngleBCCorrected;
+
+        if (!okToShoot) {
+            goalAngleBCCorrected = 0;
+        }
+
         double currentAngle = getTurretAngle();
-        
-        // Find shortest path to target (handles angle wrapping)
-        double shortestError = normalizeAngle(targetAngleRC - currentAngle);
-        double adjustedTarget = currentAngle + shortestError;
 
-        // Calculate PID power output
-        double rawPower = turretController.calculate(currentAngle, adjustedTarget) / 2.0;
+        turretController.setSetPoint(-goalAngleBCCorrected);
 
-        // Hard limit: prevent turret from moving past physical limits
-        boolean pastPositiveLimit = currentAngle > Math.toRadians(130);
-        boolean pastNegativeLimit = currentAngle < -Math.toRadians(130);
-        if (pastPositiveLimit && rawPower > 0) rawPower = 0;
-        if (pastNegativeLimit && rawPower < 0) rawPower = 0;
+        double power =
+                turretController.calculate(currentAngle) / 2.0;
 
-        // Final power output
-        double power = Range.clip(rawPower, -0.5, 0.5);
-        turret.setPower(power);
+        boolean positiveLimit =
+                currentAngle >= TurretConstants.TURRET_HARD_LIMIT_RADIANS;
 
-        // Update distance to goal
+        boolean negativeLimit =
+                currentAngle <= -TurretConstants.TURRET_HARD_LIMIT_RADIANS;
+
+        if (positiveLimit && power > 0) {
+            power = 0;
+        }
+
+        if (negativeLimit && power < 0) {
+            power = 0;
+        }
+
+        turret.setPower(
+                Range.clip(power, -0.5, 0.5)
+        );
+
         distance = botPose.distanceFrom(goalPose);
     }
 

@@ -7,6 +7,7 @@ import com.seattlesolvers.solverslib.command.CommandOpMode;
 import com.seattlesolvers.solverslib.util.TelemetryData;
 
 import org.firstinspires.ftc.teamcode.Subsystem.Gate.Gate;
+import org.firstinspires.ftc.teamcode.Subsystem.Intake.Intake;
 import org.firstinspires.ftc.teamcode.Subsystem.Turret.Turret;
 import org.firstinspires.ftc.teamcode.Subsystem.Turret.TurretConstants;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
@@ -16,6 +17,7 @@ public class TuningTeleOp extends CommandOpMode {
     private Follower follower;
     private Turret turret;
     private Gate gate;
+    private Intake intake;
     private TelemetryData telemetryData;
 
     @Override
@@ -24,6 +26,7 @@ public class TuningTeleOp extends CommandOpMode {
         follower.setPose(new Pose(112, 135, Math.toRadians(-90)));
         turret = new Turret(hardwareMap);
         gate = new Gate(hardwareMap);
+        intake = new Intake(hardwareMap);
 
         TurretConstants.selectedSide = TurretConstants.SIDES.RED;
         turret.setSide(TurretConstants.SIDES.RED);
@@ -46,21 +49,19 @@ public class TuningTeleOp extends CommandOpMode {
         follower.update();
         turret.updateBotPose(follower.getPose());
 
+        if (gamepad1.y) {
+            intake.TurnOnIntake();
+        }
+        else if (gamepad1.x){
+            intake.TurnIntakeOff();
+        }
+
         if (gamepad1.a) {
             gate.Open();
         } else if (gamepad1.b) {
             gate.Close();
         }
 
-        if (gamepad1.x) {
-            if (Turret.tuningVelocity > 0) {
-                turret.setShooterVelocity(Turret.tuningVelocity);
-            } else {
-                turret.setShooterVelocity(0);
-            }
-        } else if (gamepad1.y) {
-            turret.setShooterVelocity(0);
-        }
 
         if (gamepad1.dpad_up) {
             turret.recordCalibrationPoint();

@@ -33,13 +33,13 @@ public class Constants {
             .yVelocity(59.3)
             ;
     public static PinpointConstants localizerConstants = new PinpointConstants()
-            .forwardPodY(-1.65)
-            .strafePodX(-6.25)
+            .forwardPodY(1.5)
+            .strafePodX(-5)
             .distanceUnit(DistanceUnit.INCH)
             .hardwareMapName("PP")
             .encoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD)
-            .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD)
-            .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD);
+            .forwardEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED)
+            .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.REVERSED);
 
     public static PathConstraints pathConstraints = new PathConstraints(0.99, 100, 1, 1);
 
