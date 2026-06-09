@@ -53,6 +53,7 @@ This document describes every major feature of the DecodeNL FTC robot at a funct
 
 **Behavior:**
 - The turret rotates horizontally to face the target goal. A PID controller continuously adjusts the rotation angle as the robot moves.
+- Turret position is sensed by a REV Through Bore Encoder V1 wired as a quadrature encoder on the turret motor port. Encoder ticks are converted to radians using CPR = 8192 (quadrature 4× mode) and the gear ratio. The encoder is zeroed (STOP_AND_RESET_ENCODER) at OpMode init, and a tunable offset aligns the zero to the field reference direction.
 - Two flywheel motors spin up to a distance-dependent velocity, calculated by interpolating from a pre-calibrated lookup table.
 - A hood servo adjusts the launch angle based on distance, also via an interpolated lookup table.
 - The system compensates for robot motion by computing a "virtual robot pose" — it looks ahead along the robot's movement vector to lead the target.
@@ -72,7 +73,24 @@ This document describes every major feature of the DecodeNL FTC robot at a funct
 
 ---
 
-## 4. Vision System — Turret Targeting
+## 4. Vision System — Architecture Overview
+
+**Purpose:** The vision system provides two distinct capabilities: (1) tracking scoring targets for turret aiming, and (2) correcting odometry drift for global pose accuracy. Both capabilities share a common hardware abstraction layer.
+
+**Architecture:**
+- All Limelight cameras inherit functionality from `LimelightBase`, an abstract base class that handles:
+  - Hardware initialization and pipeline switching
+  - Camera lifecycle (`start()` / `stop()`)
+  - Dashboard camera stream setup
+  - Result validation (`isResultUsable`)
+  - Tag ID validation (`isValidTagId`)
+- Two concrete implementations: `TurretVision` (target tracking) and `VisionOdometry` (pose correction).
+- Constants are separated by concern: `OdometryConstants`, `TurretVisionConstants`, and shared types in `VisionConstants`.
+- Pose corrections are encapsulated in `UpdatePoseCommand` (FTCLib `CommandBase`) for clean command-based integration.
+
+---
+
+## 4a. Vision System — Turret Targeting
 
 **Purpose:** Detect and track the goal's AprilTag to provide precise angular aiming data for the turret.
 
@@ -80,7 +98,8 @@ This document describes every major feature of the DecodeNL FTC robot at a funct
 - Uses a dedicated Limelight 3A camera (named `limelight-turret`) pointed at the goal direction.
 - Runs at approximately 30 Hz, extracting fiducial (AprilTag) results each cycle.
 - Selects the best tag by largest target area among valid tag IDs (20 and 24).
-- Applies a Kalman filter to smooth the raw yaw measurement, reducing jitter from frame-to-frame noise.
+- Applies a 1D Kalman filter to smooth the raw yaw measurement, reducing jitter from frame-to-frame noise.
+- Uses meaningful Kalman tuning (`Q=0.1` process noise, `R=2.0` measurement noise) for effective filtering.
 - Reports the filtered yaw offset and target area. Returns zero when no valid tag is detected.
 
 **Integrations:**
@@ -95,7 +114,7 @@ This document describes every major feature of the DecodeNL FTC robot at a funct
 
 ---
 
-## 5. Vision System — Odometry Correction
+## 4b. Vision System — Odometry Correction
 
 **Purpose:** Correct cumulative dead-reckoning drift by fusing Limelight vision data with the Pinpoint odometry estimate.
 
@@ -104,20 +123,26 @@ This document describes every major feature of the DecodeNL FTC robot at a funct
 - Runs at approximately 20 Hz, extracting 3D robot pose from detected AprilTags.
 - Converts the 3D camera-space pose to 2D field coordinates, compensating for the camera's physical offset on the robot.
 - Applies three independent 1D Kalman filters (X, Y, Heading) to smooth the vision pose estimates.
-- When a pose reset is triggered (manually in TeleOp or automatically in autonomous):
+- Supports two pose retrieval methods:
+  - **Fiducial-based**: extracts 3D pose from individual AprilTag detections (existing behavior).
+  - **MT2-based**: uses Limelight's MegaTag2 fused pose output (lower latency, more stable).
+- When a pose reset is triggered (manually in TeleOp or automatically in autonomous via `UpdatePoseCommand`):
   - Fuses the vision pose with the current odometry pose using configurable weights (70% odometry / 30% vision).
   - Updates the follower's pose to the fused result.
   - Rejects outlier readings that deviate more than 1 meter from expected position.
+- `UpdatePoseCommand` handles both initial pose setting (in `initialize()`) and runtime corrections, with outlier rejection.
 
 **Integrations:**
 - Reads the current follower (odometry) pose when performing a correction.
 - Writes the fused pose back into the follower, replacing the dead-reckoning estimate.
 - Streams its camera feed to the FTC Dashboard at 30 FPS.
+- Used by `UpdatePoseCommand` for both TeleOp manual resets and autonomous periodic corrections.
 
 **Responsibilities:**
 - Maintain accurate global position over the course of a match, counteracting wheel slip and encoder drift.
 - Provide pose corrections gentle enough not to cause sudden robot jumps or path-following instability.
 - Recognize and reject clearly erroneous vision readings.
+- Separate initial pose estimation (hard reset) from incremental runtime corrections (fusion).
 
 ---
 
@@ -199,6 +224,38 @@ This document describes every major feature of the DecodeNL FTC robot at a funct
 **Responsibilities:**
 - Ensure all alliance-dependent logic (aiming, pathing, scoring) uses the correct coordinate system.
 - Eliminate the need for separate code paths for Red and Blue — mirroring handles the difference.
+
+---
+
+## 11. Alliance Side Selection System
+
+**Purpose:** Provide a single, globally persistent alliance side selection that all subsystems and OpModes can read without requiring re-selection between Autonomous and TeleOp.
+
+**Behavior:**
+- The selected alliance side is stored in `TurretConstants.selectedSide` (type `TurretConstants.SIDES`, values `BLUE` / `RED`).
+- Defaults to `BLUE` if never explicitly set.
+- Autonomous OpModes set `TurretConstants.selectedSide` during `initialize()` before any subsystem logic runs.
+- TeleOp OpModes read the value directly — no re-selection is required.
+- The value persists for the lifetime of the robot controller process (across OpMode transitions within a match).
+
+**Integrations:**
+- **Turret subsystem** (`Turret.java`): reads `TurretConstants.selectedSide` (via the local `side` field set from `PosePreserve.lastSide`) to choose the correct goal pose and angular offset via `TurretConstants.getGoalPose()`.
+- **Turret vision** (`TurretVision.java`): reads `TurretConstants.selectedSide` in `selectBestTag()` and resolves the alliance-correct AprilTag via `TurretVisionConstants.getTagIdForSide()` — ID `20` for BLUE, ID `24` for RED.
+- **Pose management** (`PosePreserve.java`): stores `lastSide` as `TurretConstants.SIDES` and uses it to mirror the starting pose for the correct alliance.
+
+**Centralized Helper Methods:**
+- `TurretConstants.getGoalPose(SIDES)` — returns `blueGoalPose` for BLUE, `redGoalPose` for RED. Used by the turret subsystem and can be reused by any OpMode or command that needs the target pose for the current alliance.
+- `TurretVisionConstants.getTagIdForSide(SIDES)` — returns `BLUE_TAG_ID` (20) for BLUE, `RED_TAG_ID` (24) for RED. Used by turret vision and provides a single point of update for any future tag re-mapping.
+
+**Responsibilities:**
+- Eliminate duplicated side-state variables across OpModes.
+- Ensure turret vision never locks onto the opposing alliance's goal tag.
+- Provide a clean, scalable foundation for future alliance-aware features (mirrored paths, alliance-specific scoring zones).
+
+**Usage pattern (in Autonomous `initialize()`):**
+```java
+TurretConstants.selectedSide = TurretConstants.SIDES.BLUE;  // or SIDES.RED
+```
 
 ---
 

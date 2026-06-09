@@ -1,54 +1,58 @@
 package org.firstinspires.ftc.teamcode.Subsystem.Vision;
 
-import com.acmerobotics.dashboard.FtcDashboard;
+import androidx.annotation.NonNull;
+
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
-import com.qualcomm.hardware.limelightvision.LLStatus;
-import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.Subsystem.Turret.TurretConstants;
 
 import java.util.List;
 
-public class TurretVision {
+public class TurretVision extends LimelightBase {
+
     private final KalmanFilter1D kalmanYaw;
-    private Limelight3A turretLimelight;
-    private Telemetry telemetry;
+    private final ElapsedTime updateTimer = new ElapsedTime();
+
     private double currentTargetYaw = 0.0;
     private double currentTargetArea = 0.0;
     private int currentTargetId = -1;
-    private boolean hasValidTarget = false;
-
-    private final ElapsedTime updateTimer = new ElapsedTime();
 
     public TurretVision() {
-        kalmanYaw = new KalmanFilter1D(0, 50,0,0);
+        kalmanYaw = new KalmanFilter1D(
+                0,
+                TurretVisionConstants.KALMAN_INITIAL_ERROR,
+                TurretVisionConstants.KALMAN_PROCESS_NOISE,
+                TurretVisionConstants.KALMAN_MEASUREMENT_NOISE
+        );
     }
 
-    public void init(HardwareMap hardwareMap, Telemetry telemetry) {
-        this.telemetry = telemetry;
-
-        turretLimelight = hardwareMap.get(Limelight3A.class, VisionConstants.turretLimelightName);
-        turretLimelight.pipelineSwitch(VisionConstants.turretLimelightPipeline);
-        turretLimelight.start();
-        FtcDashboard.getInstance().startCameraStream(turretLimelight, 120);
-
+    public void init(@NonNull HardwareMap hardwareMap, Telemetry telemetry) {
+        init(
+                hardwareMap,
+                telemetry,
+                TurretVisionConstants.HARDWARE_NAME,
+                TurretVisionConstants.PIPELINE,
+                TurretVisionConstants.DASHBOARD_STREAM_FPS
+        );
         updateTimer.reset();
     }
 
+    @Override
     public void update() {
-        if (updateTimer.milliseconds() < VisionConstants.turretIntervalMS) {
+        if (updateTimer.milliseconds() < TurretVisionConstants.INTERVAL_MS) {
             return;
         }
         updateTimer.reset();
+
         kalmanYaw.predict();
 
-        LLResult result = turretLimelight.getLatestResult();
-
+        LLResult result = limelight.getLatestResult();
         if (!isResultUsable(result)) {
-            hasValidTarget = false;
+            hasValidDetection = false;
             currentTargetId = -1;
             return;
         }
@@ -56,11 +60,11 @@ public class TurretVision {
         processBestTarget(result);
     }
 
-    private void processBestTarget(LLResult result) {
+    private void processBestTarget(@NonNull LLResult result) {
         List<LLResultTypes.FiducialResult> tags = result.getFiducialResults();
 
         if (tags == null || tags.isEmpty()) {
-            hasValidTarget = false;
+            hasValidDetection = false;
             currentTargetId = -1;
             return;
         }
@@ -68,32 +72,32 @@ public class TurretVision {
         LLResultTypes.FiducialResult bestTag = selectBestTag(tags);
 
         if (bestTag == null) {
-            hasValidTarget = false;
+            hasValidDetection = false;
             currentTargetId = -1;
             return;
         }
 
-        // Extract raw measurements
         double rawYaw = bestTag.getTargetXDegrees();
-        double targetArea = bestTag.getTargetArea();
-        int tagId = bestTag.getFiducialId();
-
-        // Update Kalman filter with raw yaw measurement
         double filteredYaw = kalmanYaw.update(rawYaw);
 
         currentTargetYaw = filteredYaw;
-        currentTargetArea = targetArea;
-        currentTargetId = tagId;
-        hasValidTarget = true;
+        currentTargetArea = bestTag.getTargetArea();
+        currentTargetId = bestTag.getFiducialId();
+        hasValidDetection = true;
     }
 
-    private LLResultTypes.FiducialResult selectBestTag(List<LLResultTypes.FiducialResult> tags) {
+    private LLResultTypes.FiducialResult selectBestTag(
+            @NonNull List<LLResultTypes.FiducialResult> tags
+    ) {
+        int targetTagId = TurretVisionConstants.getTagIdForSide(TurretConstants.selectedSide);
+
         LLResultTypes.FiducialResult bestTag = null;
         double bestArea = -1;
 
         for (LLResultTypes.FiducialResult tag : tags) {
-            if (!isValidTagId(tag.getFiducialId())) continue;
-
+            if (tag.getFiducialId() != targetTagId) {
+                continue;
+            }
             double area = tag.getTargetArea();
             if (area > bestArea) {
                 bestArea = area;
@@ -105,42 +109,24 @@ public class TurretVision {
     }
 
     public double getTurretTargetYaw() {
-        return hasValidTarget ? currentTargetYaw : 0.0;
+        return hasValidDetection ? currentTargetYaw : 0.0;
     }
 
     public double getTargetArea() {
-        return hasValidTarget ? currentTargetArea : 0.0;
+        return hasValidDetection ? currentTargetArea : 0.0;
     }
 
     public int getTargetId() {
-        return hasValidTarget ? currentTargetId : -1;
+        return hasValidDetection ? currentTargetId : -1;
     }
 
+    @Deprecated
     public boolean hasTurretTarget() {
-        return hasValidTarget;
+        return hasValidDetection;
     }
 
     public void resetTurretYaw(double value) {
         kalmanYaw.reset(value);
         currentTargetYaw = value;
-    }
-
-    public void stop() {
-        if (turretLimelight != null) {
-            turretLimelight.stop();
-        }
-    }
-
-    private boolean isResultUsable(LLResult result) {
-        if (result == null) return false;
-        LLStatus status = turretLimelight.getStatus();
-        return status != null && result.isValid();
-    }
-
-    private boolean isValidTagId(int id) {
-        for (int valid : VisionConstants.validTurretTags) {
-            if (valid == id) return true;
-        }
-        return false;
     }
 }
