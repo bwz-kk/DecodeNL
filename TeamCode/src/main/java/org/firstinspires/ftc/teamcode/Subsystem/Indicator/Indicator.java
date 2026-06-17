@@ -5,10 +5,6 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.seattlesolvers.solverslib.command.SubsystemBase;
 
-/**
- * RGB Indicator Light subsystem wrapping the GoBilda RGB Indicator Light
- * Provides simple color control through servo position mapping
- */
 @Config
 public class Indicator extends SubsystemBase {
     private Servo indicatorServo1;
@@ -23,6 +19,7 @@ public class Indicator extends SubsystemBase {
         currentColor = color;
         indicatorServo1.setPosition(color.position);
     }
+
     public IndicatorConstants.Color getColor() {
         return currentColor;
     }

@@ -15,7 +15,7 @@ import com.seattlesolvers.solverslib.pedroCommand.TurnToCommand;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
-@Autonomous
+
 public class PedroCommands extends CommandOpMode {
     Follower follower;
 

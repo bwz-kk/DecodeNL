@@ -11,12 +11,15 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.Range;
 import com.seattlesolvers.solverslib.command.SubsystemBase;
 import com.seattlesolvers.solverslib.controller.PIDController;
 import com.seattlesolvers.solverslib.util.InterpLUT;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.Subsystem.Indicator.Indicator;
+import org.firstinspires.ftc.teamcode.Subsystem.Indicator.IndicatorConstants;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,20 +27,23 @@ import java.util.List;
 @Config
 public class Turret extends SubsystemBase {
 
-    //public static int tuningVelocity = 0;
-
     public static double manualAngle = 0.0;
     public static boolean useManualAngle = false;
 
-    public static double kP = 3.0;
-    public static double kI = 0.0;
-    public static double kD = 0.09;
+    public static double kP = 5;
+    public static double kI = 0;
+    public static double kD = 16;
+
+    public static double ANGLE_STABLE_TOLERANCE_DEG = 1;
 
     private final DcMotorEx turret;
     private final DcMotorEx shooter1;
     private final DcMotorEx shooter2;
 
+    private final Indicator indicator;
+
     private final InterpLUT velocityInterpolation = new InterpLUT();
+    private boolean okToShoot = false;
 
     private Pose botPose = new Pose(0, 0, 0);
 
@@ -46,25 +52,26 @@ public class Turret extends SubsystemBase {
     public PIDController turretController = new PIDController(3, 0, 0.09);
 
     private TurretConstants.SIDES side = TurretConstants.SIDES.BLUE;
+    public static int targetVelocity = 0;
 
     private final Telemetry telemetry;
 
+
     private final List<VelocityCalibrationPoint> calibrationPoints = new ArrayList<>();
 
-
-    public Turret(HardwareMap hardwareMap) {
+    public Turret(HardwareMap hardwareMap, Indicator indicator) {
+        this.indicator = indicator;
         telemetry = FtcDashboard.getInstance().getTelemetry();
         turret = hardwareMap.get(DcMotorEx.class, TurretConstants.HMTurret);
         shooter1 = hardwareMap.get(DcMotorEx.class, TurretConstants.HMShooter1);
         shooter2 = hardwareMap.get(DcMotorEx.class, TurretConstants.HMShooter2);
         reinitMotors();
-        updateShooter();
 
-        velocityInterpolation.add(minShootingDistance, 810);
-        velocityInterpolation.add(65, 840);
-        velocityInterpolation.add(94, 900);
-        velocityInterpolation.add(120, 1050);
-        velocityInterpolation.add(maxShootingDistance, 1250);
+        velocityInterpolation.add(minShootingDistance, 980);
+        velocityInterpolation.add(74, 1000);
+        velocityInterpolation.add(95, 1200);
+        velocityInterpolation.add(119, 1300);
+        velocityInterpolation.add(maxShootingDistance, 2000);
         velocityInterpolation.createLUT();
     }
 
@@ -92,9 +99,21 @@ public class Turret extends SubsystemBase {
         return Math.abs(targetVelocity - shooter1.getVelocity()) < tolerance;
     }
 
+    public boolean isStable() {
+        double errorDeg = Math.abs(Math.toDegrees(turretController.getPositionError()));
+        boolean angleOk = errorDeg < ANGLE_STABLE_TOLERANCE_DEG;
+
+        telemetry.addData("[Turret] Stable - Angle OK", angleOk);
+        telemetry.addData("[Turret] Stable - Angle Error (deg)", errorDeg);
+
+        return angleOk;
+    }
+
     public void setShooterVelocity(int velocity) {
-        shooter1.setVelocity(velocity);
-        shooter2.setVelocity(velocity);
+        //shooter1.setVelocity(velocity);
+        //shooter2.setVelocity(velocity);
+        shooter1.setVelocity(targetVelocity);
+        shooter1.setVelocity(targetVelocity);
     }
 
     public void updateBotPose(Pose pose) {
@@ -110,29 +129,24 @@ public class Turret extends SubsystemBase {
         shooter2.setDirection(DcMotorSimple.Direction.FORWARD);
         shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooter2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shooter1.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(400, 0, 100, 17.2));
-        shooter2.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(400, 0, 100, 17.2));
+        shooter1.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(110, 0, 30, 16.2));
+        shooter2.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, new PIDFCoefficients(110, 0, 30, 16.2));
     }
 
-        int targetVelocity = 0;
+
     @Override
     public void periodic() {
-        // Update PID coefficients from dashboard
         turretController = new PIDController(kP, kI, kD);
 
         Pose goalPose = TurretConstants.getGoalPose(side);
         updateTurret(goalPose);
-        reportTelemetry(goalPose);
         updateShooter();
+        reportTelemetry(goalPose);
+
+        indicator.setColor(isStable() ? IndicatorConstants.Color.GREEN : IndicatorConstants.Color.RED);
     }
 
-    /**
-     * Update turret angle to point at goal.
-     * Handles manual override, calculates target angle in robot-centric frame,
-     * applies alliance offset, and enforces hard limits.
-     */
     private void updateTurret(Pose goalPose) {
-
         double goalAngleFC = -Math.atan2(
                 goalPose.getY() - botPose.getY(),
                 goalPose.getX() - botPose.getX()
@@ -162,14 +176,10 @@ public class Turret extends SubsystemBase {
 
         turretController.setSetPoint(-goalAngleBCCorrected);
 
-        double power =
-                turretController.calculate(currentAngle) / 2.0;
+        double power = turretController.calculate(currentAngle) / 2.0;
 
-        boolean positiveLimit =
-                currentAngle >= TurretConstants.TURRET_HARD_LIMIT_RADIANS;
-
-        boolean negativeLimit =
-                currentAngle <= -TurretConstants.TURRET_HARD_LIMIT_RADIANS;
+        boolean positiveLimit = currentAngle >= TurretConstants.TURRET_HARD_LIMIT_RADIANS;
+        boolean negativeLimit = currentAngle <= -TurretConstants.TURRET_HARD_LIMIT_RADIANS;
 
         if (positiveLimit && power > 0) {
             power = 0;
@@ -179,24 +189,18 @@ public class Turret extends SubsystemBase {
             power = 0;
         }
 
-        turret.setPower(
-                Range.clip(power, -0.5, 0.5)
-        );
+        turret.setPower(Range.clip(power, -0.5, 0.5));
 
         distance = botPose.distanceFrom(goalPose);
     }
 
     private void updateShooter() {
-            setShooterVelocity(
-                    (int) velocityInterpolation.get(Range.clip(distance, minShootingDistance + 1, maxShootingDistance - 1))
-            );
-            //setShooterVelocity(tuningVelocity);
+        setShooterVelocity(
+                (int) velocityInterpolation.get(Range.clip(distance, minShootingDistance + 1, maxShootingDistance - 1))
+        );
 
     }
 
-    /**
-     * Report turret state to telemetry.
-     */
     private void reportTelemetry(Pose goalPose) {
         double currentAngle = getTurretAngle();
         double error = turretController.getPositionError();
@@ -214,6 +218,7 @@ public class Turret extends SubsystemBase {
         telemetry.addData("[Turret] Shooter1 Vel (ticks/s)", shooter1.getVelocity());
         telemetry.addData("[Turret] Shooter2 Vel (ticks/s)", shooter2.getVelocity());
         telemetry.addData("[Turret] At Velocity", atVelocity());
+        telemetry.addData("[Turret] Is Stable", isStable());
         telemetry.addData("[Turret] Use Manual Angle", useManualAngle);
         telemetry.addData("[Turret] Manual Angle (deg)", Math.toDegrees(manualAngle));
         telemetry.update();

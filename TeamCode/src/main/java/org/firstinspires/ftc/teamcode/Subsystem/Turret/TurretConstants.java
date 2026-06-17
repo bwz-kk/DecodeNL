@@ -21,20 +21,19 @@ public class TurretConstants {
     public static double turretD = 0.0;
     public static double turretF = 0.0;
 
-    public static final double TURRET_HARD_LIMIT_RADIANS = Math.toRadians(134.0);
-    public static final double TURRET_SOFT_LIMIT_RADIANS = Math.toRadians(130.0);
+    public static final double TURRET_HARD_LIMIT_RADIANS = Math.toRadians(172.0);
+    public static final double TURRET_SOFT_LIMIT_RADIANS = Math.toRadians(170.0);
 
     public static final Pose blueGoalPose = new Pose(0, 144, 0);
     public static final Pose redGoalPose = blueGoalPose.mirror();
 
-    public static double redOffset  = -Math.toRadians(0);
+    public static double redOffset  = -Math.toRadians(-0.06);
     public static double blueOffset =  Math.toRadians(0);
 
     public static SIDES selectedSide = SIDES.BLUE;
 
-    // Shooting distance range in inches
-    public static double minShootingDistance = 54;  // 2 feet
-    public static double maxShootingDistance = 140; // 20 feet
+    public static double minShootingDistance = 54;
+    public static double maxShootingDistance = 130;
 
     public enum SIDES {
         BLUE,

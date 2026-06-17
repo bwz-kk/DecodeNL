@@ -37,17 +37,5 @@ public class VisionConstants {
     @Deprecated
     public static final double METERS_TO_INCHES = OdometryConstants.METERS_TO_INCHES;
 
-    @Deprecated
-    public static final String turretLimelightName = TurretVisionConstants.HARDWARE_NAME;
-
-    @Deprecated
-    public static final int[] validTurretTags = TurretVisionConstants.VALID_TAG_IDS;
-
-    @Deprecated
-    public static final int turretLimelightPipeline = TurretVisionConstants.PIPELINE;
-
-    @Deprecated
-    public static final long turretIntervalMS = TurretVisionConstants.INTERVAL_MS;
-
     public static final Pose startPose = new Pose(0, 0, 0);
 }

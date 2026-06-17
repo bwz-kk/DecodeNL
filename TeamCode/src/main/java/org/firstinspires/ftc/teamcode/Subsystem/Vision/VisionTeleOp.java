@@ -17,6 +17,7 @@ import org.firstinspires.ftc.teamcode.Commands.Intake.IntakeOn;
 import org.firstinspires.ftc.teamcode.Commands.Intake.TransferSequence;
 import org.firstinspires.ftc.teamcode.Field.DashboardDrawing;
 import org.firstinspires.ftc.teamcode.Subsystem.Gate.Gate;
+import org.firstinspires.ftc.teamcode.Subsystem.Indicator.Indicator;
 import org.firstinspires.ftc.teamcode.Subsystem.Intake.Intake;
 import org.firstinspires.ftc.teamcode.Subsystem.Turret.Turret;
 import org.firstinspires.ftc.teamcode.Subsystem.Turret.TurretConstants;
@@ -43,7 +44,7 @@ public class VisionTeleOp extends CommandOpMode {
 
         intake = new Intake(hardwareMap);
         gate = new Gate(hardwareMap);
-        turret = new Turret(hardwareMap);
+        turret = new Turret(hardwareMap, new Indicator(hardwareMap));
 
         TurretConstants.selectedSide = TurretConstants.SIDES.RED;
         turret.setSide(TurretConstants.SIDES.RED);

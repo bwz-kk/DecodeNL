@@ -10,7 +10,7 @@ public class PosePersistency {
 
     public static Pose savedPose = null;
 
-    public static TurretConstants.SIDES selectedSide = TurretConstants.SIDES.BLUE;
+    public static TurretConstants.SIDES selectedSide = TurretConstants.SIDES.RED;
 
     public static void reset() {
         turret = null;

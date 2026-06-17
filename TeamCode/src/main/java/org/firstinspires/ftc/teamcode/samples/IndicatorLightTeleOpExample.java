@@ -7,7 +7,7 @@ import org.firstinspires.ftc.teamcode.Commands.Indicator.SetIndicatorColor;
 import org.firstinspires.ftc.teamcode.Subsystem.Indicator.Indicator;
 import org.firstinspires.ftc.teamcode.Subsystem.Indicator.IndicatorConstants;
 
-@TeleOp(name = "Indicator Light: TeleOp Example")
+
 public class IndicatorLightTeleOpExample extends CommandOpMode {
     private Indicator indicator1;
 

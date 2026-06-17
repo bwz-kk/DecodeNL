@@ -15,6 +15,7 @@ import org.firstinspires.ftc.teamcode.Commands.Intake.IntakeOff;
 import org.firstinspires.ftc.teamcode.Commands.Intake.IntakeOn;
 import org.firstinspires.ftc.teamcode.Commands.Intake.TransferSequence;
 import org.firstinspires.ftc.teamcode.Subsystem.Gate.Gate;
+import org.firstinspires.ftc.teamcode.Subsystem.Indicator.Indicator;
 import org.firstinspires.ftc.teamcode.Subsystem.Intake.Intake;
 import org.firstinspires.ftc.teamcode.Subsystem.Turret.Turret;
 import org.firstinspires.ftc.teamcode.Subsystem.Turret.TurretConstants;
@@ -50,22 +51,20 @@ public class TuningTeleOp extends CommandOpMode {
 
     private Follower follower;
     private Turret  turret;
-    private Gate    gate;
+    Gate    gate;
     private Intake  intake;
     private GamepadEx gamepadEx;
     private TelemetryData telemetryData;
+    Indicator indicator;
 
-    private boolean prevDpadUp   = false;
-    private boolean prevDpadDown = false;
-
-    private String lastAction = "none";
 
     @Override
     public void initialize() {
         follower = Constants.createFollower(hardwareMap);
         follower.setPose(new Pose(112, 135, Math.toRadians(-90)));
 
-        turret = new Turret(hardwareMap);
+        indicator = new Indicator(hardwareMap);
+        turret = new Turret(hardwareMap, indicator);
         gate   = new Gate(hardwareMap);
         intake = new Intake(hardwareMap);
 
@@ -75,44 +74,21 @@ public class TuningTeleOp extends CommandOpMode {
         telemetryData = new TelemetryData(telemetry);
         gamepadEx = new GamepadEx(gamepad1);
 
-        gamepadEx.getGamepadButton(GamepadKeys.Button.LEFT_BUMPER)
-                .whenActive(new IntakeOn(intake))
-                .whenInactive(new IntakeOff(intake));
-
-        gamepadEx.getGamepadButton(GamepadKeys.Button.RIGHT_BUMPER)
-                .whenActive(new TransferSequence(intake, gate, turret));
-
-        gamepadEx.getGamepadButton(GamepadKeys.Button.A)
-                .whenActive(new OpenGate(gate));
-
-        gamepadEx.getGamepadButton(GamepadKeys.Button.B)
-                .whenActive(new CloseGate(gate));
+        gamepadEx.getGamepadButton(GamepadKeys.Button.LEFT_BUMPER).whenActive(new IntakeOn(intake));
+        gamepadEx.getGamepadButton(GamepadKeys.Button.LEFT_BUMPER).whenInactive(new IntakeOff(intake));
+        gamepadEx.getGamepadButton(GamepadKeys.Button.RIGHT_BUMPER).whenActive(new TransferSequence(intake, gate, turret));
+        register(intake, gate, turret, indicator);
+        follower.startTeleOpDrive();
 
         super.reset();
-        follower.startTeleopDrive();
     }
 
     @Override
     public void run() {
         super.run();
 
-        follower.setTeleOpDrive(
-                -gamepad1.left_stick_y,
-                -gamepad1.left_stick_x,
-                -gamepad1.right_stick_x,
-                false
-        );
         follower.update();
         turret.updateBotPose(follower.getPose());
-
-        gamepadEx.readButtons();
-
-        boolean curDpadUp   = gamepad1.dpad_up;
-        boolean curDpadDown = gamepad1.dpad_down;
-
-
-        prevDpadUp   = curDpadUp;
-        prevDpadDown = curDpadDown;
 
         turret.periodic();
         gate.periodic();
